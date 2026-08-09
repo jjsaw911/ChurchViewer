@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/session";
 import { resolveAccess } from "@/lib/admin/guard";
 import { getChurchBySlug } from "@/lib/churches";
-import { rootUrl } from "@/lib/env";
+import { isPlatformAdminEmail, rootUrl } from "@/lib/env";
 
 export default async function TenantLayout({ children, params }: LayoutProps<"/s/[tenant]">) {
   const { tenant } = await params;
@@ -13,6 +13,10 @@ export default async function TenantLayout({ children, params }: LayoutProps<"/s
   const user = await getSessionUser();
   const access = user ? await resolveAccess(user, church.id) : null;
   const role = access?.role ?? null;
+  // A platform admin who is also a member of this church gets no banner, so
+  // without this there'd be no way back to the console from inside a church —
+  // and registering drops you straight in here.
+  const isPlatformAdmin = isPlatformAdminEmail(user?.email);
 
   return (
     <>
@@ -44,6 +48,14 @@ export default async function TenantLayout({ children, params }: LayoutProps<"/s
             <Link href="/series" className="hover:text-amber-700 dark:hover:text-amber-500">
               Series
             </Link>
+            {isPlatformAdmin ? (
+              <a
+                href={rootUrl("/admin")}
+                className="hover:text-amber-700 dark:hover:text-amber-500"
+              >
+                Platform
+              </a>
+            ) : null}
             {role ? (
               <Link
                 href="/admin"
