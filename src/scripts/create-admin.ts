@@ -27,7 +27,30 @@ import { Pool } from "pg";
 import { hashPassword, checkPasswordStrength } from "@/lib/auth/password";
 import { users } from "@/db/schema";
 
+/**
+ * Answers piped in rather than typed. Read once, up front: each prompt opens
+ * its own reader, and closing the first one ends a piped stdin, so reading
+ * lazily hangs on the second question.
+ */
+let piped: string[] | null = null;
+
+async function readPipedAnswers(): Promise<string[]> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks).toString("utf8").split("\n");
+}
+
+async function nextPipedAnswer(question: string): Promise<string> {
+  piped ??= await readPipedAnswers();
+  const answer = piped.shift();
+  if (answer === undefined) die(`Ran out of piped input at: ${question.trim()}`);
+  process.stdout.write(`${question}\n`);
+  return answer.trim();
+}
+
 function ask(question: string): Promise<string> {
+  if (!process.stdin.isTTY) return nextPipedAnswer(question);
+
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) =>
     rl.question(question, (answer) => {
@@ -37,8 +60,14 @@ function ask(question: string): Promise<string> {
   );
 }
 
-/** Same, but nothing is echoed — this runs on a server, often over someone's shoulder. */
+/**
+ * Same, but nothing is echoed — this runs on a server, often over someone's
+ * shoulder. With no terminal there is nothing to echo to, so the piped answer
+ * is used instead; the password still never appears in argv or shell history.
+ */
 function askSecret(question: string): Promise<string> {
+  if (!process.stdin.isTTY) return nextPipedAnswer(question);
+
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
     const internal = rl as unknown as { _writeToOutput: (text: string) => void };
