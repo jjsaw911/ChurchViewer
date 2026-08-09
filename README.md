@@ -41,7 +41,11 @@ npm run lint
 | `<church>.churchviewer.com` | That church's public library |
 | `<church>.churchviewer.com/sermons/<slug>` | The player |
 | `<church>.churchviewer.com/series` | Series index |
-| `<church>.churchviewer.com/admin` | Manage messages and series (members only) |
+| `<church>.churchviewer.com/admin` | Manage messages, songs and services (members only) |
+| `<church>.churchviewer.com/admin/songs` | Worship songs and their timed slides |
+| `<church>.churchviewer.com/admin/services` | Plan a service against the clock |
+| `<church>.churchviewer.com/present/songs/<slug>` | Full-screen slides that follow the recording |
+| `<church>.churchviewer.com/present/services/<slug>` | The run sheet for the day |
 
 `src/proxy.ts` reads the `Host` header and rewrites `<church>.churchviewer.com/x`
 onto the `/s/<church>/x` route tree. Links inside a church site are written as
@@ -63,6 +67,10 @@ src/
     migrate.ts seed.ts
   lib/
     tenant.ts           pure helpers (slugify, host parsing) — no database
+    youtube.ts          video-id parsing for every link shape
+    ai/openai.ts        transcription + the optional tidy pass
+    songs/slides.ts     timed words -> slides (pure, and unit tested)
+    services/timeline.ts running order -> clock times (pure, and unit tested)
     churches.ts         tenant lookups
     content.ts          every read a church site performs
     auth/               password hashing, sessions, Google, account linking
@@ -109,6 +117,47 @@ and resuming work.
 
 Leave `GCS_BUCKET` unset and the admin UI simply accepts links only.
 
+## Worship slides
+
+Paste a YouTube link and the song plays from it; add an audio file and OpenAI
+transcribes it into **slides timed to the recording**, so the words change
+themselves as the song plays.
+
+How the timing works: `whisper-1` is asked for word-level timestamps, and
+`src/lib/songs/slides.ts` turns those into slides. Line breaks follow the
+singer's breath — a pause of about half a second ends a line, and a longer one
+starts a new slide, which is what keeps a chorus from beginning on the tail of a
+verse. Character count is only the fallback for one long unbroken phrase. An
+optional second pass tidies capitalisation and labels sections; it is explicitly
+told to reshape the transcript and never to add words of its own, and its reply
+is discarded if the slide count doesn't match.
+
+Nothing about this is trusted blindly. The editor at `/admin/songs/<slug>` plays
+the song beside the slides, highlights whichever is live, and lets you retype any
+line, drag a cue with **Set to now** while it plays, or shift everything at once
+with the nudge field. The presenter follows the recording and still takes arrow
+keys — stepping by hand seeks the audio too, so the screen and the band stay
+together.
+
+### Before you use it
+
+- **Downloading audio from YouTube breaks YouTube's Terms of Service.** The
+  YouTube link here is for playback and timing. Transcription reads an audio file
+  you supply and hold the rights to.
+- **Showing lyrics needs a licence** — CCLI or equivalent. There's a CCLI number
+  field on each song for your own reporting.
+- OpenAI's transcription endpoint accepts files up to 25MB; larger uploads are
+  rejected with a message rather than a stack trace.
+
+## Planning a service
+
+`/admin/services` builds a run sheet for a date: an ordered list of items, each
+with a kind, an owner and a duration. Times are computed from the service start,
+so changing one duration moves everything after it and the finish time updates
+with it. A song item links straight to its slides, which is the point — the
+person running Sunday opens the run sheet and everything they need is one tap
+away.
+
 ## Deploying to the VM
 
 Not automated yet — this is the shape it assumes.
@@ -137,3 +186,7 @@ Not automated yet — this is the shape it assumes.
 - Signed playback URLs are generated per sermon on render; a very large library
   will want caching or a CDN in front of the bucket.
 - No rate limiting on login or registration yet.
+- Transcription runs inside the request rather than on a queue. Fine for a song;
+  it would want a background worker before anyone transcribes a full sermon.
+- Slides are stored per song, so two churches singing the same song each
+  transcribe it themselves.

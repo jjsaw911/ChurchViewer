@@ -24,6 +24,18 @@ export default async function AdminPage({ params }: PageProps<"/s/[tenant]/admin
         </div>
         <div className="flex gap-3">
           <Link
+            href="/admin/services"
+            className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
+          >
+            Services
+          </Link>
+          <Link
+            href="/admin/songs"
+            className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
+          >
+            Songs
+          </Link>
+          <Link
             href="/admin/series"
             className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
           >
