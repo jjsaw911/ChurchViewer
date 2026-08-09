@@ -2,17 +2,12 @@
 
 import { useMemo, useState } from "react";
 import SermonCard from "@/components/SermonCard";
-import type { Sermon, Series } from "@/lib/types";
+import type { SeriesSummary, SermonSummary } from "@/lib/types";
 
 const ALL = "all";
 
-function matchesQuery(sermon: Sermon, query: string): boolean {
-  const haystack = [
-    sermon.title,
-    sermon.speaker,
-    sermon.scripture,
-    sermon.description,
-  ]
+function matchesQuery(sermon: SermonSummary, query: string): boolean {
+  const haystack = [sermon.title, sermon.speaker, sermon.scripture, sermon.seriesTitle ?? ""]
     .join(" ")
     .toLowerCase();
   return query
@@ -23,8 +18,8 @@ function matchesQuery(sermon: Sermon, query: string): boolean {
 }
 
 type Props = {
-  sermons: Sermon[];
-  series: Series[];
+  sermons: SermonSummary[];
+  series: SeriesSummary[];
   speakers: string[];
 };
 

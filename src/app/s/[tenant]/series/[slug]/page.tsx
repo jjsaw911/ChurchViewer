@@ -1,27 +1,28 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import SermonCard from "@/components/SermonCard";
-import { getAllSeries, getSeries, getSermonsInSeries } from "@/lib/sermons";
+import { getSeriesRow, listSermonsInSeries } from "@/lib/content";
+import { getChurchBySlug } from "@/lib/churches";
 
-type Params = { params: Promise<{ slug: string }> };
-
-export function generateStaticParams() {
-  return getAllSeries().map((entry) => ({ slug: entry.slug }));
-}
-
-export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const { slug } = await params;
-  const series = getSeries(slug);
+export async function generateMetadata({
+  params,
+}: PageProps<"/s/[tenant]/series/[slug]">): Promise<Metadata> {
+  const { tenant, slug } = await params;
+  const church = await getChurchBySlug(tenant);
+  const series = church ? await getSeriesRow(church.id, slug) : null;
   if (!series) return { title: "Not found" };
   return { title: series.title, description: series.description };
 }
 
-export default async function SeriesPage({ params }: Params) {
-  const { slug } = await params;
-  const series = getSeries(slug);
+export default async function SeriesPage({ params }: PageProps<"/s/[tenant]/series/[slug]">) {
+  const { tenant, slug } = await params;
+  const church = await getChurchBySlug(tenant);
+  if (!church) notFound();
+
+  const series = await getSeriesRow(church.id, slug);
   if (!series) notFound();
 
-  const sermons = getSermonsInSeries(slug);
+  const sermons = await listSermonsInSeries(church.id, series.id);
 
   return (
     <div className="space-y-8">
@@ -30,7 +31,9 @@ export default async function SeriesPage({ params }: Params) {
           Series
         </p>
         <h1 className="text-3xl font-semibold text-balance">{series.title}</h1>
-        <p className="text-stone-700 dark:text-stone-300">{series.description}</p>
+        {series.description ? (
+          <p className="text-stone-700 dark:text-stone-300">{series.description}</p>
+        ) : null}
         <p className="text-sm text-stone-500">
           {sermons.length} {sermons.length === 1 ? "message" : "messages"}
         </p>

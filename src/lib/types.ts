@@ -1,32 +1,39 @@
 export type MediaKind = "video" | "audio";
 
-export type Media = {
-  kind: MediaKind;
-  /** Direct URL to an mp4/m3u8/mp3 file, or a path under `public/`. */
-  src: string;
-  /** Still image shown before playback starts. */
-  poster?: string;
-  /** WebVTT captions track. */
-  captions?: string;
-};
-
-export type Sermon = {
+/** What a grid tile needs. Deliberately no media URL — see `SermonDetail`. */
+export type SermonSummary = {
   slug: string;
   title: string;
   speaker: string;
-  /** Slug of the series this belongs to, or null for a standalone message. */
-  seriesSlug: string | null;
   /** ISO date, `YYYY-MM-DD`. */
   date: string;
   scripture: string;
-  description: string;
   durationSeconds: number;
-  media: Media;
+  mediaKind: MediaKind;
+  posterUrl: string | null;
+  seriesSlug: string | null;
+  seriesTitle: string | null;
+  published: boolean;
 };
 
-export type Series = {
+/**
+ * A summary plus everything the player needs. Built separately because signing
+ * a playback URL costs something, and a library page needs dozens of tiles.
+ */
+export type SermonDetail = SermonSummary & {
+  description: string;
+  media: {
+    kind: MediaKind;
+    src: string;
+    poster: string | null;
+    captions: string | null;
+  };
+};
+
+export type SeriesSummary = {
   slug: string;
   title: string;
   description: string;
-  artwork?: string;
+  artworkUrl: string | null;
+  sermonCount: number;
 };
