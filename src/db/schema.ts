@@ -274,6 +274,15 @@ export const serviceItems = pgTable(
     songId: uuid("song_id").references(() => songs.id, { onDelete: "set null" }),
     /** Set when this item is a recorded message already in the library. */
     sermonId: uuid("sermon_id").references(() => sermons.id, { onDelete: "set null" }),
+    /**
+     * A video to play at this point that isn't a sermon and isn't a song — a
+     * missions clip, a baptism testimony, a bumper. Those are a normal part of
+     * a service and had nowhere to live: `songId` and `sermonId` can only point
+     * at things already in the library.
+     *
+     * Same location format as everything else — see `src/lib/storage.ts`.
+     */
+    mediaUrl: text("media_url"),
     /** Who's doing it — "Worship team", "Pastor Alina". */
     owner: text("owner").notNull().default(""),
   },

@@ -16,6 +16,7 @@ process.env.NEXT_PUBLIC_ROOT_DOMAIN = "churchviewer.com";
 import { readIdentity } from "@/lib/auth/google";
 import { isPlatformAdminEmail } from "@/lib/env";
 import { slugify, validateSlug, tenantFromHost } from "@/lib/tenant";
+import { orderWithInsert, orderWithMove } from "@/lib/services/ordering";
 import { parseClock, toClock, formatDuration } from "@/lib/format";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 
@@ -147,4 +148,30 @@ test("platform admin allowlist fails closed and ignores case and spacing", () =>
   assert.equal(isPlatformAdminEmail(undefined), false);
 
   delete process.env.PLATFORM_ADMIN_EMAILS;
+});
+
+test("inserting into a running order lands directly after the chosen item", () => {
+  const order = ["a", "b", "c"];
+  assert.deepEqual(orderWithInsert(order, "a", "new"), ["a", "new", "b", "c"]);
+  assert.deepEqual(orderWithInsert(order, "b", "new"), ["a", "b", "new", "c"]);
+  // Last item: the new one goes on the end, not before it.
+  assert.deepEqual(orderWithInsert(order, "c", "new"), ["a", "b", "c", "new"]);
+  // No anchor at all — the "add to the end" button.
+  assert.deepEqual(orderWithInsert(order, "", "new"), ["a", "b", "c", "new"]);
+  // Anchor deleted in another tab: append rather than throw away the input.
+  assert.deepEqual(orderWithInsert(order, "gone", "new"), ["a", "b", "c", "new"]);
+  assert.deepEqual(orderWithInsert([], "", "new"), ["new"]);
+  // The source array must not be touched.
+  assert.deepEqual(order, ["a", "b", "c"]);
+});
+
+test("moving an item stops at the ends instead of wrapping", () => {
+  const order = ["a", "b", "c"];
+  assert.deepEqual(orderWithMove(order, "b", "up"), ["b", "a", "c"]);
+  assert.deepEqual(orderWithMove(order, "b", "down"), ["a", "c", "b"]);
+  // Off either end is a no-op — a stale page can still send it.
+  assert.deepEqual(orderWithMove(order, "a", "up"), ["a", "b", "c"]);
+  assert.deepEqual(orderWithMove(order, "c", "down"), ["a", "b", "c"]);
+  assert.deepEqual(orderWithMove(order, "gone", "up"), ["a", "b", "c"]);
+  assert.deepEqual(order, ["a", "b", "c"]);
 });
