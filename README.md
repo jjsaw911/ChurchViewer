@@ -28,7 +28,9 @@ The seed creates **Grace Chapel** at `grace.lvh.me:3000`, owned by
 
 ```sh
 npm run build && npm run start
+npm run worker    # transcription worker — see below
 npm test          # unit checks (node:test)
+npm run test:db   # queue integration checks (needs DATABASE_URL)
 npm run lint
 ```
 
@@ -139,6 +141,42 @@ with the nudge field. The presenter follows the recording and still takes arrow
 keys — stepping by hand seeks the audio too, so the screen and the band stay
 together.
 
+### The transcription worker
+
+Transcribing takes tens of seconds for a song and minutes for a sermon, so the
+web request only ever puts the job in a queue. **`npm run worker` does the actual
+work** — without it, songs sit at "Queued" for ever. The editor polls and fills
+itself in when the worker finishes, so nobody has to sit on the page.
+
+Jobs are claimed with `UPDATE … WHERE id = (SELECT … FOR UPDATE SKIP LOCKED)`,
+which is what lets several workers share one queue without a lock server: each
+grabs a different row rather than queueing behind the same one. A worker killed
+mid-job leaves its row claimed, so the same statement also reclaims anything held
+longer than 15 minutes. Failures retry up to three times and then stop with the
+reason on the song. `npm run test:db` checks all of that against a real database.
+
+On the VM, run it as its own unit so it restarts with the machine:
+
+```ini
+# /etc/systemd/system/churchviewer-worker.service
+[Unit]
+Description=ChurchViewer transcription worker
+After=network.target
+
+[Service]
+WorkingDirectory=/srv/churchviewer
+ExecStart=/usr/bin/npm run worker
+Restart=always
+RestartSec=5
+EnvironmentFile=/srv/churchviewer/.env.local
+
+[Install]
+WantedBy=multi-user.target
+```
+
+It shuts down cleanly: on `SIGTERM` it finishes the job in hand before exiting,
+so a deploy never strands one half-done.
+
 ### Before you use it
 
 - **Downloading audio from YouTube breaks YouTube's Terms of Service.** The
@@ -186,7 +224,5 @@ Not automated yet — this is the shape it assumes.
 - Signed playback URLs are generated per sermon on render; a very large library
   will want caching or a CDN in front of the bucket.
 - No rate limiting on login or registration yet.
-- Transcription runs inside the request rather than on a queue. Fine for a song;
-  it would want a background worker before anyone transcribes a full sermon.
 - Slides are stored per song, so two churches singing the same song each
   transcribe it themselves.

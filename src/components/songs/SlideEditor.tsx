@@ -116,20 +116,57 @@ export default function SlideEditor({
     if (result.ok) router.refresh();
   };
 
+  /**
+   * Queue the job, then watch for the worker to finish it. The request returns
+   * immediately — a full-length recording takes far longer than a web request
+   * should be held open.
+   */
   const transcribe = async () => {
     setBusy(true);
-    setStatus("Transcribing — this takes about a minute for a full song…");
+    setStatus("Queued — waiting for the transcription worker…");
+
     try {
       const response = await fetch("/api/songs/transcribe", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ tenant, slug, tidy: true }),
       });
-      const data = (await response.json()) as { slides?: SlidePayload[]; error?: string };
-      if (!response.ok) throw new Error(data.error ?? "Transcription failed.");
-      setSlides(data.slides ?? []);
-      setStatus(`Built ${data.slides?.length ?? 0} slides. Check the wording before Sunday.`);
-      router.refresh();
+      const queued = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(queued.error ?? "Couldn't queue the transcription.");
+
+      const deadline = Date.now() + 15 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        const poll = await fetch(
+          `/api/songs/transcribe?tenant=${encodeURIComponent(tenant)}&slug=${encodeURIComponent(slug)}`,
+        );
+        const job = (await poll.json()) as {
+          status?: string;
+          slides?: SlidePayload[];
+          error?: string;
+          attempts?: number;
+        };
+        if (!poll.ok) throw new Error(job.error ?? "Lost track of the transcription.");
+
+        if (job.status === "ready") {
+          setSlides(job.slides ?? []);
+          setStatus(`Built ${job.slides?.length ?? 0} slides. Check the wording before Sunday.`);
+          router.refresh();
+          return;
+        }
+        if (job.status === "failed") {
+          throw new Error(job.error ?? "Transcription failed.");
+        }
+
+        setStatus(
+          job.status === "transcribing"
+            ? "Transcribing — this takes about a minute for a song."
+            : "Queued — waiting for the transcription worker…",
+        );
+      }
+
+      setStatus("Still going. It'll finish in the background — reload this page later.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Transcription failed.");
     } finally {

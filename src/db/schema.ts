@@ -145,6 +145,8 @@ export const sermons = pgTable(
  */
 export const songStatusEnum = pgEnum("song_status", [
   "draft",
+  /** Waiting for the transcription worker to pick it up. */
+  "queued",
   "transcribing",
   "ready",
   "failed",
@@ -166,6 +168,11 @@ export const songs = pgTable(
     audioSrc: text("audio_src"),
     durationSeconds: integer("duration_seconds").notNull().default(0),
     status: songStatusEnum("status").notNull().default("draft"),
+    /** Set when a worker claims the job; also how a dead worker's job is reclaimed. */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    transcribeAttempts: integer("transcribe_attempts").notNull().default(0),
+    /** Whether the queued job should also run the AI clean-up pass. */
+    tidyRequested: boolean("tidy_requested").notNull().default(true),
     /** Populated by transcription; kept so slides can be rebuilt without re-paying. */
     transcript: jsonb("transcript").$type<TranscriptPayload | null>(),
     /** What actually goes on screen, with the time each one appears. */
