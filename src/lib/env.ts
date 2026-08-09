@@ -52,7 +52,38 @@ export const env = {
       return Boolean(process.env.GCS_BUCKET);
     },
   },
+
+  /**
+   * Who may administer the whole platform, as a comma-separated list of email
+   * addresses. Deliberately config and not a database column: there's no
+   * bootstrap problem (nobody has to grant the first admin), and nothing
+   * reachable through the app — a bug in a server action, a stray SQL write —
+   * can promote an account, because the answer doesn't live in the database.
+   *
+   * The cost is that changing it needs an edit and a service restart. That is
+   * the right trade for a list that should change about once a year.
+   */
+  get platformAdminEmails(): string[] {
+    return (process.env.PLATFORM_ADMIN_EMAILS ?? "")
+      .split(",")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean);
+  },
 } as const;
+
+/**
+ * Whether this address administers the platform.
+ *
+ * Compares against the configured list case-insensitively. An empty or unset
+ * list matches nobody — the failure mode for a missing config is no access,
+ * never open access.
+ */
+export function isPlatformAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const allowed = env.platformAdminEmails;
+  if (allowed.length === 0) return false;
+  return allowed.includes(email.trim().toLowerCase());
+}
 
 /**
  * Hostnames that only ever mean "someone's laptop": plain localhost, the

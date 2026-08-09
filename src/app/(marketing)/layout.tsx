@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth/session";
+import { isPlatformAdminEmail } from "@/lib/env";
 import SignOutButton from "@/components/auth/SignOutButton";
 
 export default async function MarketingLayout({ children }: LayoutProps<"/">) {
   const user = await getSessionUser();
+  const isAdmin = isPlatformAdminEmail(user?.email);
 
   return (
     <>
@@ -16,6 +18,14 @@ export default async function MarketingLayout({ children }: LayoutProps<"/">) {
             {user ? (
               <>
                 <span className="hidden text-stone-500 sm:inline">{user.email}</span>
+                {isAdmin ? (
+                  <Link
+                    href="/admin"
+                    className="hover:text-amber-700 dark:hover:text-amber-500"
+                  >
+                    Platform
+                  </Link>
+                ) : null}
                 <Link href="/register" className="hover:text-amber-700 dark:hover:text-amber-500">
                   Your churches
                 </Link>

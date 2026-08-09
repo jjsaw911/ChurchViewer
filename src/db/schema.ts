@@ -65,6 +65,17 @@ export const churches = pgTable(
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     tagline: text("tagline").notNull().default(""),
+    /**
+     * Set by a platform admin to take a church off the air. The subdomain stops
+     * serving and it drops out of every listing, but nothing is deleted — an
+     * archive is reversible and a `DELETE` here is not, because every content
+     * table cascades off this row.
+     *
+     * The slug stays claimed while archived, so restoring is lossless and
+     * nobody can register the address out from under a church that's only
+     * temporarily off. Renaming the archived church is how you free it.
+     */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("churches_slug_key").on(t.slug)],

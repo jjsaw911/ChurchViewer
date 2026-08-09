@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { churches, memberships } from "@/db/schema";
 import GoogleButton from "@/components/auth/GoogleButton";
@@ -13,12 +13,14 @@ export const metadata: Metadata = { title: "Register your church" };
 export default async function RegisterPage() {
   const user = await getSessionUser();
 
+  // Archived churches are excluded: their subdomain 404s, so listing one here
+  // would just be a link into a dead end.
   const existing = user
     ? await db
         .select({ slug: churches.slug, name: churches.name })
         .from(memberships)
         .innerJoin(churches, eq(churches.id, memberships.churchId))
-        .where(eq(memberships.userId, user.id))
+        .where(and(eq(memberships.userId, user.id), isNull(churches.archivedAt)))
     : [];
 
   return (

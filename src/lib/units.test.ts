@@ -14,6 +14,7 @@ process.env.GOOGLE_CLIENT_SECRET = "test-secret";
 process.env.NEXT_PUBLIC_ROOT_DOMAIN = "churchviewer.com";
 
 import { readIdentity } from "@/lib/auth/google";
+import { isPlatformAdminEmail } from "@/lib/env";
 import { slugify, validateSlug, tenantFromHost } from "@/lib/tenant";
 import { parseClock, toClock, formatDuration } from "@/lib/format";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
@@ -123,4 +124,27 @@ test("password hashes verify, and wrong passwords don't", async () => {
   assert.equal(await verifyPassword("not-the-passphrase", hash), false);
   // A stored value we don't recognise must fail closed, not throw.
   assert.equal(await verifyPassword("whatever", "bcrypt$nonsense"), false);
+});
+
+test("platform admin allowlist fails closed and ignores case and spacing", () => {
+  delete process.env.PLATFORM_ADMIN_EMAILS;
+  // Unset must mean nobody, never everybody.
+  assert.equal(isPlatformAdminEmail("someone@example.com"), false);
+
+  process.env.PLATFORM_ADMIN_EMAILS = "";
+  assert.equal(isPlatformAdminEmail("someone@example.com"), false);
+
+  process.env.PLATFORM_ADMIN_EMAILS = " Boss@Example.com , second@example.com ";
+  assert.equal(isPlatformAdminEmail("boss@example.com"), true);
+  assert.equal(isPlatformAdminEmail("BOSS@EXAMPLE.COM"), true);
+  assert.equal(isPlatformAdminEmail("second@example.com"), true);
+  assert.equal(isPlatformAdminEmail("nobody@example.com"), false);
+
+  // A blank session email must never match a blank entry in the list.
+  process.env.PLATFORM_ADMIN_EMAILS = "boss@example.com,,";
+  assert.equal(isPlatformAdminEmail(""), false);
+  assert.equal(isPlatformAdminEmail(null), false);
+  assert.equal(isPlatformAdminEmail(undefined), false);
+
+  delete process.env.PLATFORM_ADMIN_EMAILS;
 });
