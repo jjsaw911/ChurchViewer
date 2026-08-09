@@ -10,6 +10,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
+    "admin:create": "tsx src/scripts/create-admin.ts",
     "test": "tsx --test src/lib/units.test.ts src/lib/songs/slides.test.ts",
     "worker": "tsx src/worker/transcribe.ts",
     "test:db": "tsx --test src/lib/songs/queue.db-test.ts"

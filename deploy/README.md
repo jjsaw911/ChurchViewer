@@ -20,6 +20,29 @@ sudo -u churchviewer /srv/churchviewer/deploy/deploy.sh
 site back to a skeleton. Fix the default in `deploy.sh` once the branches
 converge.
 
+## Creating a platform administrator
+
+A platform admin is an account with no church attached — it sits above every
+church rather than inside one. Two things have to line up:
+
+1. The address is in `PLATFORM_ADMIN_EMAILS` in `/srv/churchviewer/.env.local`
+   (that's what grants the power), followed by
+   `sudo systemctl restart churchviewer`.
+2. An account exists for it. `/register` on the site can't make one — it creates
+   a church as part of signing up — so use the script:
+
+```sh
+cd /srv/churchviewer && sudo -u churchviewer npm run admin:create -- you@example.com
+```
+
+It prompts for a password without echoing it, refuses any address not already
+on the allowlist, and creates the user with no membership rows at all. Add
+`--reset` to set a new password on an account that already exists.
+
+This is deliberately not a web route. A public "claim the admin account"
+endpoint is a race — whoever guesses the address first wins — and requiring
+shell access means whoever creates the account already holds the server.
+
 ## Still outstanding
 
 - **The transcription worker is installed but disabled.** It exits on start
