@@ -22,7 +22,19 @@ export type ChurchView = {
   songCount: number;
   memberCount: number;
   owners: string[];
+  lastActivityAt: string | null;
+  recentSermons: number;
 };
+
+/** How long since they last did anything — the "is this church alive" read. */
+function activityLabel(iso: string | null): { text: string; stale: boolean } {
+  if (!iso) return { text: "nothing posted yet", stale: true };
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days === 0) return { text: "active today", stale: false };
+  if (days === 1) return { text: "active yesterday", stale: false };
+  if (days < 60) return { text: `active ${days} days ago`, stale: days > 45 };
+  return { text: `quiet for ${Math.floor(days / 30)} months`, stale: true };
+}
 
 const field =
   "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900";
@@ -72,6 +84,7 @@ export default function ChurchRow({
   const archived = church.archivedAt !== null;
   const address = `${church.slug}.${rootDomain}`;
   const moving = slugify(slug) !== church.slug;
+  const activity = activityLabel(church.lastActivityAt);
 
   return (
     <li
@@ -106,6 +119,20 @@ export default function ChurchRow({
             {church.memberCount} members
             {church.owners.length > 0 ? ` · ${church.owners.join(", ")}` : " · no owner"}
           </p>
+          {archived ? null : (
+            <p
+              className={`mt-1 text-xs ${
+                activity.stale
+                  ? "font-medium text-amber-700 dark:text-amber-500"
+                  : "text-stone-500"
+              }`}
+            >
+              {activity.text}
+              {church.recentSermons > 0
+                ? ` · ${church.recentSermons} in the last 30 days`
+                : ""}
+            </p>
+          )}
         </div>
 
         <button

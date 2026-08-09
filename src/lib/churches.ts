@@ -1,6 +1,6 @@
 import { and, asc, count, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { churches, memberships, sermons, songs, users } from "@/db/schema";
+import { churches, memberships, sermons, services, sessions, songs, users } from "@/db/schema";
 
 /** Database lookups for tenants. Kept apart from `lib/tenant.ts` so middleware
  * and client components can use the pure helpers without pulling in `pg`. */
@@ -52,6 +52,10 @@ export type ChurchSummary = {
   songCount: number;
   memberCount: number;
   owners: string[];
+  /** Newest of anything they've added — the "is this church alive" signal. */
+  lastActivityAt: Date | null;
+  /** Sermons posted in the last 30 days, so a stall is visible at a glance. */
+  recentSermons: number;
 };
 
 /**
@@ -77,6 +81,18 @@ export async function listChurches(): Promise<ChurchSummary[]> {
       memberCount: sql<number>`(
         select count(*)::int from ${memberships} where ${memberships.churchId} = ${churches.id}
       )`,
+      recentSermons: sql<number>`(
+        select count(*)::int from ${sermons}
+        where ${sermons.churchId} = ${churches.id}
+          and ${sermons.createdAt} > now() - interval '30 days'
+      )`,
+      // The most recent thing of any kind. `greatest` ignores nulls in
+      // Postgres, so a church with sermons but no songs still reports.
+      lastActivityAt: sql<Date | null>`greatest(
+        (select max(${sermons.createdAt}) from ${sermons} where ${sermons.churchId} = ${churches.id}),
+        (select max(${songs.createdAt}) from ${songs} where ${songs.churchId} = ${churches.id}),
+        (select max(${services.createdAt}) from ${services} where ${services.churchId} = ${churches.id})
+      )`,
     })
     .from(churches)
     .orderBy(asc(churches.name));
@@ -98,6 +114,64 @@ export async function listChurches(): Promise<ChurchSummary[]> {
   }
 
   return rows.map((row) => ({ ...row, owners: ownersByChurch.get(row.id) ?? [] }));
+}
+
+export type PersonSummary = {
+  id: string;
+  email: string;
+  name: string;
+  createdAt: Date;
+  /** Newest live session. Null means signed out everywhere, or never signed in. */
+  lastSeenAt: Date | null;
+  /** Whether they can sign in with a password at all — Google-only accounts can't. */
+  hasPassword: boolean;
+  churches: { slug: string; role: string }[];
+};
+
+/**
+ * Everyone with a login, for the console's people list.
+ *
+ * This is what makes a locked-out person actionable: you can see whether they
+ * have a password to reset, whether they've ever signed in, and which churches
+ * they'd lose access to.
+ */
+export async function listPeople(): Promise<PersonSummary[]> {
+  const rows = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      createdAt: users.createdAt,
+      passwordHash: users.passwordHash,
+      lastSeenAt: sql<Date | null>`(
+        select max(${sessions.createdAt}) from ${sessions} where ${sessions.userId} = ${users.id}
+      )`,
+    })
+    .from(users)
+    .orderBy(asc(users.email));
+
+  const membershipRows = await db
+    .select({
+      userId: memberships.userId,
+      slug: churches.slug,
+      role: memberships.role,
+    })
+    .from(memberships)
+    .innerJoin(churches, eq(churches.id, memberships.churchId))
+    .orderBy(asc(churches.slug));
+
+  const byUser = new Map<string, { slug: string; role: string }[]>();
+  for (const row of membershipRows) {
+    const list = byUser.get(row.userId) ?? [];
+    list.push({ slug: row.slug, role: row.role });
+    byUser.set(row.userId, list);
+  }
+
+  return rows.map(({ passwordHash, ...row }) => ({
+    ...row,
+    hasPassword: passwordHash !== null,
+    churches: byUser.get(row.id) ?? [],
+  }));
 }
 
 /** Headline numbers for the console. */

@@ -10,6 +10,7 @@ import {
   normalizeEmail,
 } from "@/lib/auth/accounts";
 import { checkPasswordStrength, verifyPassword } from "@/lib/auth/password";
+import { completeReset, resolveResetToken } from "@/lib/auth/reset";
 import { createSession, destroySession, getSessionUser } from "@/lib/auth/session";
 import { tenantUrl } from "@/lib/env";
 import { slugify, validateSlug } from "@/lib/tenant";
@@ -116,6 +117,41 @@ export async function loginAction(_previous: FormState, formData: FormData): Pro
 
   await createSession(user.id);
   redirect(safeNext(next, "/register"));
+}
+
+/**
+ * Set a new password from a one-time link. No session is required — being
+ * locked out is the whole reason someone is here.
+ */
+export async function resetPasswordAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const token = value(formData, "token");
+  const password = String(formData.get("password") ?? "");
+
+  const problem = checkPasswordStrength(password);
+  if (problem) return { error: problem, field: "password" };
+  if (password !== String(formData.get("confirm") ?? "")) {
+    return { error: "Those don't match.", field: "confirm" };
+  }
+
+  const target = await resolveResetToken(token);
+  if (!target) {
+    return {
+      error: "That link has expired or already been used. Ask for a new one.",
+      field: "password",
+    };
+  }
+
+  if (!(await completeReset(token, password))) {
+    return { error: "That link is no longer valid.", field: "password" };
+  }
+
+  // Deliberately not signed in here. They've proved they hold the link, not
+  // that they are the person — signing in is the next step, with the password
+  // they just chose.
+  redirect("/login");
 }
 
 export async function signOutAction(): Promise<void> {

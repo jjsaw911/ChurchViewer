@@ -57,6 +57,33 @@ export const sessions = pgTable(
   (t) => [index("sessions_user_id_idx").on(t.userId)],
 );
 
+/**
+ * A one-time link that lets somebody set a new password.
+ *
+ * Issued by a platform admin for a person who is locked out. Deliberately a
+ * link and not a password the admin chooses: the admin never learns the
+ * credential, so a reset can't quietly become a way into someone's account.
+ *
+ * Only a SHA-256 of the token is stored, same as sessions — a leaked database
+ * doesn't hand anyone a usable link.
+ */
+export const passwordResets = pgTable(
+  "password_resets",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    /** Set the moment it's spent, so a link that leaks later is already dead. */
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    /** Who issued it. An admin reaching into an account should leave a trace. */
+    issuedBy: uuid("issued_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("password_resets_user_id_idx").on(t.userId)],
+);
+
 /** A registered church — one tenant, reachable at `<slug>.churchviewer.com`. */
 export const churches = pgTable(
   "churches",

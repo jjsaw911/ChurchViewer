@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import ChurchRow, { type ChurchView } from "@/components/admin/ChurchRow";
+import PeopleList, { type PersonView } from "@/components/admin/PeopleList";
 import { createChurchAction, type PlatformState } from "@/lib/admin/platform-actions";
 import { slugify } from "@/lib/tenant";
 
@@ -10,6 +11,7 @@ const field =
 
 type Props = {
   churches: ChurchView[];
+  people: PersonView[];
   stats: { live: number; archived: number; sermons: number; users: number };
   rootDomain: string;
   adminEmail: string;
@@ -24,7 +26,13 @@ function Stat({ label, value }: { label: string; value: number }) {
   );
 }
 
-export default function PlatformConsole({ churches, stats, rootDomain, adminEmail }: Props) {
+export default function PlatformConsole({
+  churches,
+  people,
+  stats,
+  rootDomain,
+  adminEmail,
+}: Props) {
   const [state, create, creating] = useActionState<PlatformState, FormData>(
     createChurchAction,
     {},
@@ -152,6 +160,8 @@ export default function PlatformConsole({ churches, stats, rootDomain, adminEmai
           </ul>
         )}
       </section>
+
+      <PeopleList people={people} />
 
       {archived.length > 0 ? (
         <section className="space-y-4">

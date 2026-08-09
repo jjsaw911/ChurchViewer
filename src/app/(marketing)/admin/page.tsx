@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import PlatformConsole from "@/components/admin/PlatformConsole";
 import { requirePlatformAdmin } from "@/lib/admin/platform";
-import { listChurches, platformStats } from "@/lib/churches";
+import { listChurches, listPeople, platformStats } from "@/lib/churches";
 import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Platform admin" };
@@ -14,7 +14,11 @@ export const metadata: Metadata = { title: "Platform admin" };
  */
 export default async function PlatformAdminPage() {
   const admin = await requirePlatformAdmin();
-  const [churches, stats] = await Promise.all([listChurches(), platformStats()]);
+  const [churches, people, stats] = await Promise.all([
+    listChurches(),
+    listPeople(),
+    platformStats(),
+  ]);
 
   return (
     <PlatformConsole
@@ -22,6 +26,14 @@ export default async function PlatformAdminPage() {
         ...church,
         archivedAt: church.archivedAt ? church.archivedAt.toISOString() : null,
         createdAt: church.createdAt.toISOString(),
+        lastActivityAt: church.lastActivityAt
+          ? new Date(church.lastActivityAt).toISOString()
+          : null,
+      }))}
+      people={people.map((person) => ({
+        ...person,
+        createdAt: person.createdAt.toISOString(),
+        lastSeenAt: person.lastSeenAt ? new Date(person.lastSeenAt).toISOString() : null,
       }))}
       stats={stats}
       rootDomain={env.rootDomain}

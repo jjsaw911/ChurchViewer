@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getMembershipRole, getSessionUser } from "@/lib/auth/session";
+import { getSessionUser } from "@/lib/auth/session";
+import { resolveAccess } from "@/lib/admin/guard";
 import { getChurchBySlug } from "@/lib/churches";
 import { isOpenAiConfigured } from "@/lib/ai/openai";
 import { enqueueTranscription } from "@/lib/songs/queue";
@@ -21,8 +22,9 @@ async function authorize(tenant: string | undefined, slug: string | undefined) {
     return { error: NextResponse.json({ error: "Unknown church." }, { status: 404 }) };
   }
 
-  const role = await getMembershipRole(user.id, church.id);
-  if (!role) {
+  // Platform admins are allowed in without membership — same rule as the pages.
+  const access = await resolveAccess(user, church.id);
+  if (!access) {
     return {
       error: NextResponse.json({ error: "You can't edit this church's songs." }, { status: 403 }),
     };

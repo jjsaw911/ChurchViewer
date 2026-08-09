@@ -3,10 +3,12 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { churches, memberships } from "@/db/schema";
+import { churches, memberships, users } from "@/db/schema";
 import { findUserByEmail, isPlausibleEmail, normalizeEmail } from "@/lib/auth/accounts";
+import { createResetToken, revokeAllSessions } from "@/lib/auth/reset";
 import { requirePlatformAdmin } from "@/lib/admin/platform";
 import { getAnyChurchBySlug } from "@/lib/churches";
+import { rootUrl } from "@/lib/env";
 import { slugify, validateSlug } from "@/lib/tenant";
 
 /**
@@ -232,6 +234,49 @@ export async function addOwnerAction(
 
   refresh(church.slug);
   return { ok: `${email} now owns ${church.slug}.`, scope: church.slug };
+}
+
+/**
+ * Mint a one-time link that lets someone set their own password.
+ *
+ * The admin never chooses the password — they hand over a way to choose one.
+ * That's the difference between helping somebody back into their account and
+ * being able to walk into it yourself, and it's worth keeping.
+ */
+export async function createResetLinkAction(
+  _previous: PlatformState,
+  formData: FormData,
+): Promise<PlatformState> {
+  const admin = await requirePlatformAdmin();
+
+  const userId = value(formData, "userId");
+  const [person] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!person) return fail("No such account.");
+
+  const token = await createResetToken(person.id, admin.id);
+
+  revalidatePath("/admin");
+  return {
+    ok: rootUrl(`/reset/${token}`),
+    scope: person.email,
+  };
+}
+
+/** Drop every session for an account — the answer to "someone else is in there". */
+export async function revokeSessionsAction(
+  _previous: PlatformState,
+  formData: FormData,
+): Promise<PlatformState> {
+  await requirePlatformAdmin();
+
+  const userId = value(formData, "userId");
+  const [person] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!person) return fail("No such account.");
+
+  await revokeAllSessions(person.id);
+
+  revalidatePath("/admin");
+  return { ok: `${person.email} is signed out everywhere.`, scope: person.email };
 }
 
 export async function removeOwnerAction(

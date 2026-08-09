@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getMembershipRole, getSessionUser } from "@/lib/auth/session";
+import { getSessionUser } from "@/lib/auth/session";
+import { resolveAccess } from "@/lib/admin/guard";
 import { env } from "@/lib/env";
 import { createUploadUrl } from "@/lib/storage";
 import { getChurchBySlug } from "@/lib/churches";
@@ -29,8 +30,9 @@ export async function POST(request: NextRequest) {
   const church = await getChurchBySlug(body.tenant);
   if (!church) return NextResponse.json({ error: "Unknown church." }, { status: 404 });
 
-  const role = await getMembershipRole(user.id, church.id);
-  if (!role) return NextResponse.json({ error: "You can't upload to this church." }, { status: 403 });
+  // Platform admins are allowed in without membership — same rule as the pages.
+  const access = await resolveAccess(user, church.id);
+  if (!access) return NextResponse.json({ error: "You can't upload to this church." }, { status: 403 });
 
   if (!env.storage.isConfigured) {
     return NextResponse.json(
