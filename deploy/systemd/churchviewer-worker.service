@@ -1,0 +1,33 @@
+# /etc/systemd/system/churchviewer-worker.service
+#
+# The transcription worker. Separate unit so it restarts with the machine and
+# survives an app restart mid-job — on SIGTERM it finishes the job in hand
+# before exiting, so a deploy never strands one half-done.
+[Unit]
+Description=ChurchViewer transcription worker
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=churchviewer
+Group=churchviewer
+WorkingDirectory=/srv/churchviewer
+
+Environment=NODE_ENV=production
+EnvironmentFile=/srv/churchviewer/.env.local
+
+ExecStart=/usr/bin/npm run worker
+Restart=always
+RestartSec=5
+
+KillSignal=SIGTERM
+# Long enough for a whisper call in flight to land.
+TimeoutStopSec=300
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
