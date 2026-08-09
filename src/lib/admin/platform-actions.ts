@@ -9,6 +9,7 @@ import { createResetToken, revokeAllSessions } from "@/lib/auth/reset";
 import { requirePlatformAdmin } from "@/lib/admin/platform";
 import { getAnyChurchBySlug } from "@/lib/churches";
 import { rootUrl } from "@/lib/env";
+import { clearSetting, OPENAI_API_KEY, setSetting } from "@/lib/settings";
 import { slugify, validateSlug } from "@/lib/tenant";
 
 /**
@@ -55,6 +56,44 @@ async function checkSlug(raw: string, currentId?: string): Promise<string | Plat
     );
   }
   return slug;
+}
+
+/**
+ * Store the OpenAI key the platform pays for.
+ *
+ * Kept out of the environment on purpose: the person holding this key is
+ * holding it in a browser, and making them open an SSH session and restart two
+ * services to change it is how a key ends up not being rotated. It goes in the
+ * database, is read at the point of use, and is never sent back to a browser —
+ * the console only ever shows the last four characters.
+ */
+export async function saveOpenAiKeyAction(
+  _previous: PlatformState,
+  formData: FormData,
+): Promise<PlatformState> {
+  const admin = await requirePlatformAdmin();
+
+  const key = value(formData, "apiKey");
+  if (!key) return fail("Paste the key first.", "openai");
+
+  // Not validation so much as a typo check: a key that isn't a key fails later,
+  // in a worker log nobody is watching.
+  if (!/^sk-[A-Za-z0-9_-]{20,}$/.test(key)) {
+    return fail("That doesn't look like an OpenAI key — they start with sk-.", "openai");
+  }
+
+  await setSetting(OPENAI_API_KEY, key, admin.id);
+
+  revalidatePath("/admin");
+  return { ok: "Key saved. Transcription is on from the next job.", scope: "openai" };
+}
+
+export async function clearOpenAiKeyAction(): Promise<PlatformState> {
+  await requirePlatformAdmin();
+  await clearSetting(OPENAI_API_KEY);
+
+  revalidatePath("/admin");
+  return { ok: "Key removed. Audio still gets extracted; nothing will be transcribed.", scope: "openai" };
 }
 
 export async function createChurchAction(

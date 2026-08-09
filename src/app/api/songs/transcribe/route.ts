@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   const resolved = await authorize(body?.tenant, body?.slug);
   if ("error" in resolved) return resolved.error;
 
-  if (!isOpenAiConfigured()) {
+  if (!(await isOpenAiConfigured())) {
     return NextResponse.json(
       { error: "No OpenAI key is configured on the server yet." },
       { status: 501 },

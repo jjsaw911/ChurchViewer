@@ -77,7 +77,7 @@ export default async function EditSongPage({
         audioUrl={audioUrl}
         initialSlides={song.slides}
         initialOffsetMs={song.timingOffsetMs}
-        canTranscribe={isOpenAiConfigured()}
+        canTranscribe={await isOpenAiConfigured()}
         hasAudio={Boolean(song.audioSrc)}
       />
 

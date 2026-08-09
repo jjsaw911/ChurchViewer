@@ -140,7 +140,7 @@ export async function markExtractedOnly(job: ClaimedJob): Promise<void> {
       status: "draft",
       claimedAt: null,
       lastError:
-        "Audio pulled out of the video. Set OPENAI_API_KEY on the server to turn it into slides.",
+        "Audio pulled out of the video. Add an OpenAI key in the platform console to turn it into slides.",
     })
     .where(eq(songs.id, job.id));
 }

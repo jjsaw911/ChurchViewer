@@ -1,3 +1,4 @@
+import { getSetting, OPENAI_API_KEY } from "@/lib/settings";
 import type { TranscribedWord, TranscriptPayload } from "@/lib/songs/types";
 
 /**
@@ -11,11 +12,27 @@ const API_BASE = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
 const TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL ?? "whisper-1";
 const TIDY_MODEL = process.env.OPENAI_TIDY_MODEL ?? "gpt-4o-mini";
 
-export const isOpenAiConfigured = () => Boolean(process.env.OPENAI_API_KEY);
+/**
+ * The key, from the environment or from the platform console.
+ *
+ * The environment wins: a server deliberately configured with a key shouldn't
+ * be quietly overridden from a browser. Everything else falls back to the
+ * stored setting, which is how a platform administrator turns transcription on
+ * without an SSH session.
+ */
+export async function openAiKey(): Promise<string | null> {
+  const fromEnv = process.env.OPENAI_API_KEY;
+  if (fromEnv) return fromEnv;
+  return getSetting(OPENAI_API_KEY);
+}
 
-function apiKey(): string {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY is not set — add it before transcribing.");
+export const isOpenAiConfigured = async () => Boolean(await openAiKey());
+
+async function apiKey(): Promise<string> {
+  const key = await openAiKey();
+  if (!key) {
+    throw new Error("No OpenAI key is set — add one in the platform console before transcribing.");
+  }
   return key;
 }
 
@@ -43,7 +60,7 @@ export async function transcribeAudio(input: {
 
   const response = await fetch(`${API_BASE}/audio/transcriptions`, {
     method: "POST",
-    headers: { authorization: `Bearer ${apiKey()}` },
+    headers: { authorization: `Bearer ${await apiKey()}` },
     body: form,
     signal: input.signal,
   });
@@ -109,7 +126,7 @@ export async function tidySlides(input: {
   const response = await fetch(`${API_BASE}/chat/completions`, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${apiKey()}`,
+      authorization: `Bearer ${await apiKey()}`,
       "content-type": "application/json",
     },
     signal: input.signal,

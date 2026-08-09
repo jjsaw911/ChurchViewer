@@ -241,6 +241,23 @@ export const songs = pgTable(
   (t) => [uniqueIndex("songs_church_slug_key").on(t.churchId, t.slug)],
 );
 
+/**
+ * Settings for the whole platform, set from the console rather than by editing
+ * a file on the server.
+ *
+ * Only what genuinely can't live in the environment belongs here — today that's
+ * the OpenAI key, because the person who has it is the person running the
+ * platform in a browser, not the person with an SSH session. Values are secrets:
+ * they are written from the console, read on the server, and never sent back to
+ * a browser.
+ */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const mediaAssetKindEnum = pgEnum("media_asset_kind", [
   "audio",
   "video",

@@ -9,6 +9,7 @@ import {
   deleteServiceItemAction,
   moveItemToAction,
   moveServiceItemAction,
+  setItemDurationAction,
   updateServiceItemAction,
 } from "@/lib/services/actions";
 import { effectiveSlides, type SlideSource } from "@/lib/services/slides";
@@ -84,6 +85,25 @@ const KIND_STYLE: Record<string, string> = {
 const field =
   "rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900";
 
+/**
+ * How far the bottom edge of a box travels for one minute.
+ *
+ * The ruler isn't drawn to scale — a service laid out at real proportions is
+ * either a page nobody can see the end of, or boxes too short to read. So the
+ * drag is a rate rather than a position: pull down, and the length goes up at a
+ * pace that makes a five minute change an easy movement and a fifty minute one
+ * deliberate.
+ */
+const PIXELS_PER_MINUTE = 5;
+
+/** The same map without one key, or the same object when it wasn't in it. */
+function forget(lengths: Record<string, number>, itemId: string): Record<string, number> {
+  if (lengths[itemId] === undefined) return lengths;
+  const next = { ...lengths };
+  delete next[itemId];
+  return next;
+}
+
 /** Where a dragged item is being let go: a level, and what it lands before. */
 type DropTarget = { parentId: string | null; beforeItemId?: string | null };
 
@@ -95,6 +115,12 @@ type Drag = {
   drop: (target: DropTarget) => void;
 };
 
+type Resize = {
+  /** The minutes being dragged onto an item right now, or null when idle. */
+  pending: Record<string, number>;
+  begin: (itemId: string, fromMinutes: number, fromY: number) => void;
+};
+
 type Shared = {
   tenant: string;
   serviceId: string;
@@ -102,6 +128,7 @@ type Shared = {
   slideSources: SlideSource[];
   uploadsEnabled: boolean;
   drag: Drag;
+  resize: Resize;
 };
 
 /** Where a new activity goes: inside what, and between which two things. */
@@ -444,7 +471,10 @@ function ActivityBlock({
         setOver(null);
         shared.drag.drop({ parentId: item.parentId, beforeItemId: item.id });
       }}
-      className={`rounded-xl border bg-white dark:bg-stone-900 ${
+      // A longer activity is a taller box, but only up to a point: at true
+      // proportions the sermon would push everything after it off the screen.
+      style={{ minHeight: 34 + Math.min(90, (holdsOthers ? runsFor : minutes) * 1.6) }}
+      className={`flex flex-col rounded-xl border bg-white dark:bg-stone-900 ${
         over === "before"
           ? "border-amber-500 shadow-[0_-3px_0_0_theme(colors.amber.500)]"
           : "border-stone-200 dark:border-stone-800"
@@ -495,7 +525,15 @@ function ActivityBlock({
         {item.owner ? (
           <span className="hidden text-xs text-stone-500 sm:inline">{item.owner}</span>
         ) : null}
-        <span className="text-xs text-stone-500">{holdsOthers ? runsFor : minutes}m</span>
+        <span
+          className={`text-xs tabular-nums ${
+            dragging === null && shared.resize.pending[item.id] !== undefined
+              ? "font-semibold text-amber-700 dark:text-amber-500"
+              : "text-stone-500"
+          }`}
+        >
+          {holdsOthers ? runsFor : minutes}m
+        </span>
 
         {/* Anything with a player behind it opens one in place, so checking the
             clip is the right clip doesn't mean leaving the plan. */}
@@ -714,6 +752,21 @@ function ActivityBlock({
         </div>
       ) : null}
 
+      {/* The bottom edge, to pull the activity longer or shorter. An activity
+          that holds songs has no length of its own to drag. */}
+      {!holdsOthers ? (
+        <div
+          onPointerDown={(event) => {
+            event.preventDefault();
+            shared.resize.begin(item.id, minutes, event.clientY);
+          }}
+          title="Drag to change how long it runs"
+          className="group/resize -mt-1 flex h-3 cursor-ns-resize items-center justify-center"
+        >
+          <span className="h-0.5 w-10 rounded-full bg-stone-200 transition group-hover/resize:bg-amber-500 dark:bg-stone-700" />
+        </div>
+      ) : null}
+
       {/* Everything inside this activity: the songs in the set, in order. */}
       {entry.depth === 0 ? (
         <div
@@ -792,7 +845,49 @@ export default function ServicePlanner({
   const router = useRouter();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
+  const [pending, setPending] = useState<Record<string, number>>({});
   const [, startTransition] = useTransition();
+
+  /**
+   * Pull the bottom of a box and the whole plan below it moves with you: the
+   * lengths here are merged into the layout before it's worked out, so the
+   * times on the ruler are the times you'd get if you let go now.
+   */
+  const beginResize = (itemId: string, fromMinutes: number, fromY: number) => {
+    let minutes = fromMinutes;
+
+    const onMove = (event: PointerEvent) => {
+      const next = Math.max(
+        0,
+        Math.min(240, fromMinutes + Math.round((event.clientY - fromY) / PIXELS_PER_MINUTE)),
+      );
+      if (next === minutes) return;
+      minutes = next;
+      setPending((current) => ({ ...current, [itemId]: next }));
+    };
+
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+
+      if (minutes === fromMinutes) {
+        setPending((current) => forget(current, itemId));
+        return;
+      }
+
+      startTransition(async () => {
+        const result = await setItemDurationAction({ tenant, serviceId, itemId, minutes });
+        if (!result.ok) setDropError(result.error ?? "That length didn't save.");
+        router.refresh();
+        // Held until the refreshed plan arrives, so the box doesn't snap back
+        // to the old length for the moment in between.
+        setPending((current) => forget(current, itemId));
+      });
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
 
   const drag: Drag = {
     id: draggingId,
@@ -821,10 +916,19 @@ export default function ServicePlanner({
     slideSources,
     uploadsEnabled,
     drag,
+    resize: { pending, begin: beginResize },
   };
 
   const { rows, count } = useMemo(() => {
-    const plan = layoutPlan(items, serviceStartsAt);
+    const dragged = Object.keys(pending).length
+      ? items.map((item) =>
+          pending[item.id] === undefined
+            ? item
+            : { ...item, durationSeconds: pending[item.id] * 60 },
+        )
+      : items;
+
+    const plan = layoutPlan(dragged, serviceStartsAt);
     const slots = timeSlots(plan.startMinutes, plan.endMinutes, STEP_MINUTES);
     const first = slots[0];
     const lastIndex = slots.length - 1;
@@ -876,7 +980,7 @@ export default function ServicePlanner({
         };
       }),
     };
-  }, [items, serviceStartsAt]);
+  }, [items, pending, serviceStartsAt]);
 
   return (
     <div>

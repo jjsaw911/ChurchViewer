@@ -24,12 +24,8 @@ async function main() {
     process.exit(1);
   }
 
-  const canTranscribe = Boolean(process.env.OPENAI_API_KEY);
-  if (!canTranscribe) {
-    console.warn("OPENAI_API_KEY is not set — this worker will extract audio but not transcribe.");
-  }
-
   // Imported after the environment is loaded, so the pool reads the real URL.
+  const { isOpenAiConfigured } = await import("@/lib/ai/openai");
   const {
     claimNextJob,
     markExtracting,
@@ -52,7 +48,7 @@ async function main() {
   process.on("SIGINT", () => stop("SIGINT"));
   process.on("SIGTERM", () => stop("SIGTERM"));
 
-  console.log(`Song worker started${canTranscribe ? "" : " (extraction only)"}.`);
+  console.log("Song worker started.");
 
   while (running) {
     let job;
@@ -83,7 +79,10 @@ async function main() {
         await markTranscribing(job);
       }
 
-      if (!canTranscribe) {
+      // Checked per job, not at startup: the key can be set in the platform
+      // console at any moment, and a worker that decided hours ago that there
+      // wasn't one would keep refusing until somebody restarted it.
+      if (!(await isOpenAiConfigured())) {
         await markExtractedOnly(job);
         console.log(`✓ ${job.slug}: audio ready, no OpenAI key so no slides`);
         continue;

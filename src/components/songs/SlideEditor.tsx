@@ -261,7 +261,7 @@ export default function SlideEditor({
           ) : null}
           {hasAudio && !canTranscribe ? (
             <p className="text-xs text-stone-500">
-              Set OPENAI_API_KEY on the server to enable transcription.
+              Add an OpenAI key in the platform console to enable transcription.
             </p>
           ) : null}
           <p className="text-xs text-stone-500">

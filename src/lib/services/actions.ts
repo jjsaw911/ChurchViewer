@@ -287,7 +287,7 @@ export async function addServiceItemAction(formData: FormData): Promise<void> {
     // Slides are the point of adding the recording, so start on them now rather
     // than making someone come back and press a second button. Extraction is
     // worth queueing on its own; transcription needs a key to be any use.
-    if (created.audioSrc ? isOpenAiConfigured() : Boolean(created.videoSrc)) {
+    if (created.audioSrc ? await isOpenAiConfigured() : Boolean(created.videoSrc)) {
       await enqueueSongWork({ churchId: church.id, songId: created.id, tidy: true });
     }
   }
@@ -525,6 +525,40 @@ export async function moveItemToAction(input: {
         .where(eq(serviceItems.id, id));
     }
   });
+
+  revalidatePath(`/s/${input.tenant}`, "layout");
+  return { ok: true };
+}
+
+/**
+ * Set how long one activity runs.
+ *
+ * Its own action because it's what dragging the bottom of a box does, and that
+ * happens a lot in a row — reusing the whole edit form would mean sending, and
+ * re-saving, every other field on the item each time somebody nudged a minute.
+ */
+export async function setItemDurationAction(input: {
+  tenant: string;
+  serviceId: string;
+  itemId: string;
+  minutes: number;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { church } = await requireChurchAccess(input.tenant);
+
+  const service = await ownedService(church.id, input.serviceId);
+  if (!service) return { ok: false, error: "That service no longer exists." };
+
+  // Four hours is past any single item in a service and well past a drag that
+  // meant anything; a negative one isn't a length at all.
+  const minutes = Math.min(240, Math.max(0, Math.round(input.minutes)));
+
+  const [saved] = await db
+    .update(serviceItems)
+    .set({ durationSeconds: minutes * 60 })
+    .where(and(eq(serviceItems.id, input.itemId), eq(serviceItems.serviceId, service.id)))
+    .returning({ id: serviceItems.id });
+
+  if (!saved) return { ok: false, error: "That activity is no longer in the plan." };
 
   revalidatePath(`/s/${input.tenant}`, "layout");
   return { ok: true };
