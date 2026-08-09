@@ -38,6 +38,14 @@ On a Mac without Postgres:
 brew install postgresql@16 && brew services start postgresql@16
 ```
 
+The worker needs **ffmpeg** on the PATH to pull audio out of a video a church has
+uploaded. Without it everything else still works; that one step fails with a
+message saying so.
+
+```sh
+brew install ffmpeg
+```
+
 Open **http://lvh.me:3000** — not `localhost`. `lvh.me` and every subdomain
 resolve to 127.0.0.1 through public DNS, which is what makes
 `grace.lvh.me:3000` work. Plain `localhost` will *not* do: browsers never send a

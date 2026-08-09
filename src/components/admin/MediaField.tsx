@@ -1,6 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
+import MediaPicker from "@/components/media/MediaPicker";
+import { registerMediaAction } from "@/lib/media/actions";
+import type { MediaKind } from "@/lib/media/service";
 
 const field =
   "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900";
@@ -15,11 +18,18 @@ type Props = {
   uploadsEnabled: boolean;
   hint?: string;
   required?: boolean;
+  /** Which part of the library to offer. Omit to offer all of it. */
+  kinds?: MediaKind[];
 };
 
 /**
- * One field, two ways to fill it: paste a URL, or upload a file straight to the
- * bucket via a signed URL and keep the resulting object location.
+ * One field, three ways to fill it: paste a URL, upload a file, or take one the
+ * church already has.
+ *
+ * An upload goes straight to the bucket through a signed URL and is then
+ * recorded in the media library — which is what makes the third way possible.
+ * Before that, a file existed only as a string on whatever row happened to need
+ * it, so using the same clip twice meant uploading it twice.
  */
 export default function MediaField({
   name,
@@ -30,10 +40,13 @@ export default function MediaField({
   uploadsEnabled,
   hint,
   required,
+  kinds,
 }: Props) {
   const [location, setLocation] = useState(defaultValue ?? "");
+  const [chosen, setChosen] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const isUpload = location.startsWith("gcs:");
@@ -77,6 +90,18 @@ export default function MediaField({
       });
 
       setLocation(data.location);
+      setChosen(file.name);
+
+      // The bytes are safe either way; failing to list them is worth a line of
+      // explanation, not throwing away a finished upload.
+      const registered = await registerMediaAction({
+        tenant,
+        location: data.location,
+        filename: file.name,
+        contentType: file.type || "application/octet-stream",
+        bytes: file.size,
+      });
+      if (!registered.ok) setError("Uploaded, but it didn't reach the media library.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Upload failed.");
     } finally {
@@ -95,11 +120,14 @@ export default function MediaField({
       {isUpload ? (
         <div className="flex items-center gap-3 rounded-lg border border-stone-300 px-3 py-2 text-sm dark:border-stone-700">
           <span className="flex-1 truncate text-stone-600 dark:text-stone-400">
-            Uploaded file &middot; {location.split("/").pop()}
+            {chosen ?? `Stored file · ${location.split("/").pop()}`}
           </span>
           <button
             type="button"
-            onClick={() => setLocation("")}
+            onClick={() => {
+              setLocation("");
+              setChosen(null);
+            }}
             className="font-medium text-amber-700 hover:underline dark:text-amber-500"
           >
             Replace
@@ -116,29 +144,55 @@ export default function MediaField({
         />
       )}
 
-      {uploadsEnabled && !isUpload ? (
-        <div className="flex items-center gap-3 pt-1">
-          <input
-            ref={fileInput}
-            type="file"
-            accept={accept}
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void upload(file);
-              event.target.value = "";
-            }}
-          />
+      {!isUpload ? (
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          {uploadsEnabled ? (
+            <>
+              <input
+                ref={fileInput}
+                type="file"
+                accept={accept}
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void upload(file);
+                  event.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInput.current?.click()}
+                disabled={progress !== null}
+                className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium hover:border-amber-400 disabled:opacity-60 dark:border-stone-700"
+              >
+                {progress === null ? "Upload a file" : `Uploading… ${progress}%`}
+              </button>
+            </>
+          ) : null}
+
           <button
             type="button"
-            onClick={() => fileInput.current?.click()}
-            disabled={progress !== null}
-            className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium hover:border-amber-400 disabled:opacity-60 dark:border-stone-700"
+            onClick={() => setPicking(true)}
+            className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
           >
-            {progress === null ? "Upload a file" : `Uploading… ${progress}%`}
+            Choose from the library
           </button>
           <span className="text-xs text-stone-500">or paste a link above</span>
         </div>
+      ) : null}
+
+      {picking ? (
+        <MediaPicker
+          tenant={tenant}
+          kinds={kinds}
+          title={label}
+          onPick={(item) => {
+            setLocation(item.location);
+            setChosen(item.title);
+            setPicking(false);
+          }}
+          onClose={() => setPicking(false)}
+        />
       ) : null}
 
       {hint ? <p className="text-xs text-stone-500">{hint}</p> : null}

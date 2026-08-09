@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { LogoMark } from "@/components/Logo";
 import { getSessionUser } from "@/lib/auth/session";
 import { resolveAccess } from "@/lib/admin/guard";
 import { getChurchBySlug } from "@/lib/churches";
@@ -56,6 +57,16 @@ export default async function TenantLayout({ children, params }: LayoutProps<"/s
                 Platform
               </a>
             ) : null}
+            {/* Planning is the thing staff come here to do week by week, so it
+                sits in the church's own nav rather than one level in. */}
+            {role ? (
+              <Link
+                href="/admin/services"
+                className="hover:text-amber-700 dark:hover:text-amber-500"
+              >
+                Plans
+              </Link>
+            ) : null}
             {role ? (
               <Link
                 href="/admin"
@@ -73,7 +84,10 @@ export default async function TenantLayout({ children, params }: LayoutProps<"/s
       <footer className="border-t border-stone-200 py-6 dark:border-stone-800">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-6 text-sm text-stone-500">
           <span>{church.name}</span>
-          <span>Powered by ChurchViewer</span>
+          <span className="flex items-center gap-2">
+            <LogoMark className="h-5 w-5" />
+            Powered by ChurchViewer
+          </span>
         </div>
       </footer>
     </>

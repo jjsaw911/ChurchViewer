@@ -49,6 +49,7 @@ export default function SeriesForm({ tenant, uploadsEnabled }: Props) {
         label="Artwork"
         tenant={tenant}
         accept="image/*"
+        kinds={["image"]}
         uploadsEnabled={uploadsEnabled}
       />
 

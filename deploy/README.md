@@ -115,6 +115,16 @@ sudo chmod 600 /srv/churchviewer/.env.local
 Then edit `.env.local` — at minimum `DATABASE_URL` and
 `NEXT_PUBLIC_ROOT_DOMAIN=churchviewer.com`.
 
+### 3b. ffmpeg
+
+The worker shells out to `ffmpeg` to take the audio track off a video a church
+has uploaded. Without it that step fails with a message saying so, and nothing
+else is affected.
+
+```sh
+sudo apt install ffmpeg
+```
+
 ### 4. Postgres
 
 A local PostgreSQL 17 cluster on the VM (not Cloud SQL), with its own role:

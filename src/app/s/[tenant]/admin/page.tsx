@@ -27,7 +27,7 @@ export default async function AdminPage({ params }: PageProps<"/s/[tenant]/admin
             href="/admin/services"
             className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
           >
-            Services
+            Plans
           </Link>
           <Link
             href="/admin/songs"
@@ -40,6 +40,12 @@ export default async function AdminPage({ params }: PageProps<"/s/[tenant]/admin
             className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
           >
             Series
+          </Link>
+          <Link
+            href="/admin/media"
+            className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
+          >
+            Media
           </Link>
           <Link
             href="/admin/sermons/new"

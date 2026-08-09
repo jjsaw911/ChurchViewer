@@ -3,13 +3,13 @@ import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { serviceItems, services } from "@/db/schema";
+import PlanList, { type PlanRow } from "@/components/services/PlanList";
 import { requireChurchAccess } from "@/lib/admin/guard";
 import { createServiceForDateAction } from "@/lib/services/actions";
-import { formatTimeOfDay, parseTimeOfDay } from "@/lib/services/timeline";
 
-export const metadata: Metadata = { title: "Services" };
+export const metadata: Metadata = { title: "Plans" };
 
-export default async function ServicesPage({ params }: PageProps<"/s/[tenant]/admin/services">) {
+export default async function PlansPage({ params }: PageProps<"/s/[tenant]/admin/services">) {
   const { tenant } = await params;
   const { church } = await requireChurchAccess(tenant);
 
@@ -28,9 +28,20 @@ export default async function ServicesPage({ params }: PageProps<"/s/[tenant]/ad
     .groupBy(services.id)
     .orderBy(desc(services.heldOn));
 
+  const plans: PlanRow[] = rows.map((row) => ({
+    slug: row.slug,
+    title: row.title,
+    heldOn: row.heldOn,
+    startsAt: row.startsAt,
+    itemCount: row.itemCount,
+    runtimeMinutes: Math.round(row.runtime / 60),
+  }));
+
   const today = new Date().toISOString().slice(0, 10);
-  const upcoming = rows.filter((row) => row.heldOn >= today);
-  const past = rows.filter((row) => row.heldOn < today);
+  // Today counts as coming up: on a Sunday morning the plan for that morning is
+  // the one somebody is reaching for.
+  const upcoming = plans.filter((plan) => plan.heldOn >= today);
+  const previous = plans.filter((plan) => plan.heldOn < today);
 
   // Today if it's already Sunday, otherwise the one coming. UTC throughout, to
   // match how `heldOn` is stored and compared.
@@ -38,52 +49,26 @@ export default async function ServicesPage({ params }: PageProps<"/s/[tenant]/ad
   now.setUTCDate(now.getUTCDate() + ((7 - now.getUTCDay()) % 7));
   const nextSunday = now.toISOString().slice(0, 10);
 
-  const list = (entries: typeof rows) => (
-    <ul className="divide-y divide-stone-200 rounded-xl border border-stone-200 dark:divide-stone-800 dark:border-stone-800">
-      {entries.map((service) => (
-        <li key={service.slug} className="flex flex-wrap items-center justify-between gap-4 p-4">
-          <div>
-            <Link
-              href={`/admin/services/${service.slug}`}
-              className="font-medium hover:text-amber-700 dark:hover:text-amber-500"
-            >
-              {service.title}
-            </Link>
-            <p className="text-sm text-stone-500">
-              {new Date(`${service.heldOn}T00:00:00Z`).toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-                timeZone: "UTC",
-              })}{" "}
-              · {formatTimeOfDay(parseTimeOfDay(service.startsAt) ?? 0)}
-            </p>
-          </div>
-          <p className="text-sm text-stone-500">
-            {service.itemCount} {service.itemCount === 1 ? "item" : "items"}
-            {service.runtime ? ` · ${Math.round(service.runtime / 60)} min` : ""}
-          </p>
-        </li>
-      ))}
-    </ul>
-  );
-
   return (
-    <div className="space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-1">
-          <Link href="/admin" className="text-sm text-stone-500 hover:underline">
-            &larr; Manage
-          </Link>
-          <h1 className="text-3xl font-semibold">Services</h1>
-          <p className="text-sm text-stone-500">Plan a service start to finish, against the clock.</p>
-        </div>
-        {/* Date first: planning starts with "which Sunday", not with a title.
-            The next Sunday is pre-filled because that's the answer most of the
-            time; everything else gets a default you can edit in the planner. */}
+    <div className="space-y-10">
+      <header className="space-y-1">
+        <Link href="/admin" className="text-sm text-stone-500 hover:underline">
+          &larr; Manage
+        </Link>
+        <h1 className="text-3xl font-semibold">Plans</h1>
+        <p className="text-sm text-stone-500">
+          Plan a service against the clock, then run it on Sunday.
+        </p>
+      </header>
+
+      {/* Date first: planning starts with "which Sunday", not with a title. The
+          next Sunday is pre-filled because that's the answer most of the time;
+          everything else gets a default you can change in the planner. */}
+      <section className="space-y-3">
+        <h2 className="font-semibold">Add a plan</h2>
         <form
           action={createServiceForDateAction}
-          className="flex flex-wrap items-end gap-2 rounded-xl border border-stone-200 p-3 dark:border-stone-800"
+          className="flex flex-wrap items-end gap-3 rounded-xl border border-stone-200 p-4 dark:border-stone-800"
         >
           <input type="hidden" name="tenant" value={tenant} />
           <label className="space-y-1 text-xs">
@@ -108,31 +93,24 @@ export default async function ServicesPage({ params }: PageProps<"/s/[tenant]/ad
             type="submit"
             className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800"
           >
-            Create service
+            Start planning
           </button>
         </form>
-      </header>
+      </section>
 
-      {rows.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-stone-300 p-12 text-center text-stone-500 dark:border-stone-700">
-          No services planned yet.
+      <section className="space-y-3">
+        <h2 className="font-semibold">Coming up</h2>
+        <PlanList plans={upcoming} emptyMessage="Nothing planned ahead yet." />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-semibold">Open a previous plan</h2>
+        <p className="text-sm text-stone-500">
+          Last week&apos;s order is usually most of this week&apos;s. Open one to copy its
+          slides across, or just to see what you did.
         </p>
-      ) : (
-        <div className="space-y-8">
-          {upcoming.length > 0 ? (
-            <section className="space-y-3">
-              <h2 className="font-semibold">Coming up</h2>
-              {list(upcoming)}
-            </section>
-          ) : null}
-          {past.length > 0 ? (
-            <section className="space-y-3">
-              <h2 className="font-semibold text-stone-500">Past</h2>
-              {list(past)}
-            </section>
-          ) : null}
-        </div>
-      )}
+        <PlanList plans={previous} emptyMessage="No services have been and gone yet." />
+      </section>
     </div>
   );
 }

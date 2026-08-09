@@ -1,0 +1,185 @@
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { db } from "@/db/client";
+import {
+  mediaAssets,
+  series,
+  sermons,
+  serviceItems,
+  services,
+  songs,
+} from "@/db/schema";
+import { isGcsLocation } from "@/lib/storage";
+
+export type MediaKind = "audio" | "video" | "image" | "captions" | "other";
+
+/**
+ * What sort of thing this is, from whatever the browser told us and, failing
+ * that, the name. Content types are missing often enough — a drag from a file
+ * server, an external link someone pasted — that the extension has to be a
+ * fallback rather than a nicety.
+ */
+export function kindFor(contentType: string, filename: string): MediaKind {
+  const type = contentType.toLowerCase();
+  if (type === "text/vtt" || type === "text/srt") return "captions";
+  if (type.startsWith("audio/")) return "audio";
+  if (type.startsWith("video/")) return "video";
+  if (type.startsWith("image/")) return "image";
+
+  const extension = filename.toLowerCase().split(".").pop() ?? "";
+  if (["mp3", "m4a", "wav", "aac", "ogg", "flac"].includes(extension)) return "audio";
+  if (["mp4", "mov", "m4v", "webm", "avi", "mkv"].includes(extension)) return "video";
+  if (["jpg", "jpeg", "png", "gif", "webp", "avif", "svg"].includes(extension)) return "image";
+  if (["vtt", "srt"].includes(extension)) return "captions";
+  return "other";
+}
+
+/** The last path segment, with the uuid we prefix object keys with taken off. */
+export function displayFilename(locationOrName: string): string {
+  const last = locationOrName.split("/").pop() ?? locationOrName;
+  return last.replace(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i,
+    "",
+  );
+}
+
+/** "worship-night-final.mp3" -> "Worship night final". */
+export function titleFromFilename(filename: string): string {
+  const withoutExtension = filename.replace(/\.[^.]+$/, "");
+  const spaced = withoutExtension.replace(/[-_]+/g, " ").trim();
+  if (!spaced) return "Untitled";
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/**
+ * Put a file in the library.
+ *
+ * Called once the bytes are safely in the bucket. Registering the same location
+ * twice is a no-op that returns what's already there — two forms uploading the
+ * same file, or a re-run of a backfill, shouldn't double it up.
+ */
+export async function registerMedia(input: {
+  churchId: string;
+  location: string;
+  filename: string;
+  contentType?: string;
+  bytes?: number | null;
+  title?: string;
+  uploadedBy?: string | null;
+}) {
+  const filename = displayFilename(input.filename);
+
+  const [created] = await db
+    .insert(mediaAssets)
+    .values({
+      churchId: input.churchId,
+      location: input.location,
+      filename,
+      title: input.title?.trim() || titleFromFilename(filename),
+      contentType: input.contentType ?? "",
+      kind: kindFor(input.contentType ?? "", filename),
+      bytes: input.bytes ?? null,
+      uploadedBy: input.uploadedBy ?? null,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (created) return created;
+
+  const [existing] = await db
+    .select()
+    .from(mediaAssets)
+    .where(
+      and(eq(mediaAssets.churchId, input.churchId), eq(mediaAssets.location, input.location)),
+    )
+    .limit(1);
+
+  return existing ?? null;
+}
+
+export type MediaQuery = {
+  churchId: string;
+  /** Matched against the title and the original filename. */
+  search?: string;
+  kinds?: MediaKind[];
+  limit?: number;
+  offset?: number;
+};
+
+/**
+ * A page of the library, newest first.
+ *
+ * Paged rather than "everything, filtered in the browser": a church that has
+ * been recording for ten years has thousands of files, and the picker has to
+ * open in the same amount of time on year ten as on day one.
+ */
+export async function listMedia(query: MediaQuery) {
+  const limit = Math.min(60, Math.max(1, query.limit ?? 24));
+  const search = query.search?.trim();
+
+  const filters = [eq(mediaAssets.churchId, query.churchId)];
+  if (search) {
+    const pattern = `%${search}%`;
+    filters.push(
+      or(
+        ilike(mediaAssets.title, pattern),
+        ilike(mediaAssets.filename, pattern),
+        ilike(mediaAssets.notes, pattern),
+      )!,
+    );
+  }
+  if (query.kinds?.length) {
+    filters.push(
+      or(...query.kinds.map((kind) => eq(mediaAssets.kind, kind)))!,
+    );
+  }
+
+  // One extra row is the cheapest way to know whether to offer "load more".
+  const rows = await db
+    .select()
+    .from(mediaAssets)
+    .where(and(...filters))
+    .orderBy(desc(mediaAssets.createdAt))
+    .limit(limit + 1)
+    .offset(Math.max(0, query.offset ?? 0));
+
+  return { rows: rows.slice(0, limit), hasMore: rows.length > limit };
+}
+
+export async function getMedia(churchId: string, id: string) {
+  const [row] = await db
+    .select()
+    .from(mediaAssets)
+    .where(and(eq(mediaAssets.churchId, churchId), eq(mediaAssets.id, id)))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Where a file is being used, so nobody deletes the thing that was going on the
+ * screen on Sunday. Counted rather than listed — the number is what changes the
+ * decision, and six joined lists would be a lot of query for a confirm dialog.
+ */
+export async function mediaUsage(churchId: string, location: string): Promise<number> {
+  // No FROM: this is one scalar, and hanging it off a table would make the
+  // answer depend on that table having rows.
+  const result = await db.execute(sql`
+    select (
+        (select count(*) from ${songs}
+          where ${songs.churchId} = ${churchId} and ${songs.audioSrc} = ${location})
+      + (select count(*) from ${sermons}
+          where ${sermons.churchId} = ${churchId}
+            and ${location} in (${sermons.mediaSrc}, ${sermons.posterSrc}, ${sermons.captionsSrc}))
+      + (select count(*) from ${series}
+          where ${series.churchId} = ${churchId} and ${series.artworkSrc} = ${location})
+      + (select count(*) from ${serviceItems}
+          join ${services} on ${services.id} = ${serviceItems.serviceId}
+          where ${services.churchId} = ${churchId} and ${serviceItems.mediaUrl} = ${location})
+    )::int as total
+  `);
+
+  const row = (result.rows as { total?: number }[])[0];
+  return Number(row?.total ?? 0);
+}
+
+/** Whether this is ours to delete from the bucket, or somebody else's link. */
+export const isHeldFile = (location: string) => isGcsLocation(location);

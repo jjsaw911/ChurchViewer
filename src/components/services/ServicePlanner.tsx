@@ -1,0 +1,922 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import MediaField from "@/components/admin/MediaField";
+import ActivitySlides from "@/components/services/ActivitySlides";
+import {
+  addServiceItemAction,
+  deleteServiceItemAction,
+  moveItemToAction,
+  moveServiceItemAction,
+  updateServiceItemAction,
+} from "@/lib/services/actions";
+import { effectiveSlides, type SlideSource } from "@/lib/services/slides";
+import type { Attachment } from "@/lib/media/attachment";
+import {
+  formatTimeOfDay,
+  layoutPlan,
+  timeSlots,
+  toClockValue,
+  type PlanEntry,
+} from "@/lib/services/timeline";
+import type { SlidePayload } from "@/lib/songs/types";
+
+/**
+ * The service as a clock you can click.
+ *
+ * The ruler runs down the left in quarter hours. Anything planned sits against
+ * the time it happens; anything not planned yet is an empty quarter hour with a
+ * "+" on it — which is the whole interaction: click 9:00, say what happens at
+ * 9:00. An activity can hold others (the worship set holds its songs), and each
+ * one carries the slides that go on the screen while it runs.
+ */
+
+const STEP_MINUTES = 15;
+
+export type PlanItem = {
+  id: string;
+  parentId: string | null;
+  title: string;
+  kind: string;
+  durationSeconds: number;
+  /** A start pinned by hand, `HH:MM`, or null to follow the item before it. */
+  startsAt: string | null;
+  owner: string;
+  notes: string;
+  songId: string | null;
+  songSlug: string | null;
+  /** The linked song's slides — what shows when this item has none of its own. */
+  songSlides: SlidePayload[];
+  slides: SlidePayload[];
+  mediaUrl: string | null;
+  /** The attached file, already resolved into something showable. */
+  attachment: Attachment | null;
+  /** The linked song's recording, so a row can be listened to where it sits. */
+  songAudioUrl: string | null;
+};
+
+export const KINDS = [
+  "song",
+  "worship",
+  "scripture",
+  "prayer",
+  "sermon",
+  "offering",
+  "announcements",
+  "communion",
+  "other",
+] as const;
+
+/** A colour per kind, so the shape of a service is legible at a glance. */
+const KIND_STYLE: Record<string, string> = {
+  song: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300",
+  worship: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300",
+  scripture: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
+  prayer: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+  sermon: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300",
+  offering: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300",
+  announcements: "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300",
+  communion: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
+  other: "bg-stone-200 text-stone-700 dark:bg-stone-700 dark:text-stone-200",
+};
+
+const field =
+  "rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900";
+
+/** Where a dragged item is being let go: a level, and what it lands before. */
+type DropTarget = { parentId: string | null; beforeItemId?: string | null };
+
+type Drag = {
+  /** The item currently under the cursor, or null when nothing is moving. */
+  id: string | null;
+  begin: (id: string) => void;
+  end: () => void;
+  drop: (target: DropTarget) => void;
+};
+
+type Shared = {
+  tenant: string;
+  serviceId: string;
+  songOptions: { id: string; title: string }[];
+  slideSources: SlideSource[];
+  uploadsEnabled: boolean;
+  drag: Drag;
+};
+
+/** Where a new activity goes: inside what, and between which two things. */
+type Placement = {
+  parentId?: string;
+  afterItemId?: string;
+  beforeItemId?: string;
+  /** Prefilled clock time, from the slot that was clicked. */
+  startsAt?: string;
+};
+
+function AddActivityForm({
+  shared,
+  placement,
+  onDone,
+}: {
+  shared: Shared;
+  placement: Placement;
+  onDone: () => void;
+}) {
+  const nested = Boolean(placement.parentId);
+  const [kind, setKind] = useState(nested ? "song" : "announcements");
+  // Inside a worship set the song usually isn't in the library yet — that's the
+  // moment someone has the mp3 in their hand.
+  const [newSong, setNewSong] = useState(shared.songOptions.length === 0);
+
+  return (
+    <form
+      action={addServiceItemAction}
+      onSubmit={onDone}
+      className="space-y-3 rounded-xl border border-amber-300 bg-amber-50/60 p-3 dark:border-amber-800 dark:bg-amber-950/30"
+    >
+      <input type="hidden" name="tenant" value={shared.tenant} />
+      <input type="hidden" name="serviceId" value={shared.serviceId} />
+      {placement.parentId ? (
+        <input type="hidden" name="parentId" value={placement.parentId} />
+      ) : null}
+      {placement.afterItemId ? (
+        <input type="hidden" name="afterItemId" value={placement.afterItemId} />
+      ) : null}
+      {placement.beforeItemId ? (
+        <input type="hidden" name="beforeItemId" value={placement.beforeItemId} />
+      ) : null}
+
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="space-y-1 text-xs">
+          <span className="block font-medium">Activity</span>
+          <select
+            name="kind"
+            value={kind}
+            onChange={(event) => setKind(event.target.value)}
+            className={field}
+          >
+            {KINDS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1 text-xs">
+          <span className="block font-medium">Called</span>
+          <input
+            name="title"
+            placeholder="Leave blank for a default"
+            className={`${field} w-52`}
+          />
+        </label>
+
+        <label className="space-y-1 text-xs">
+          <span className="block font-medium">Starts</span>
+          <input
+            name="startsAt"
+            defaultValue={placement.startsAt ?? ""}
+            placeholder={nested ? "follows on" : "10:00"}
+            className={`${field} w-24 font-mono`}
+          />
+        </label>
+
+        <label className="space-y-1 text-xs">
+          <span className="block font-medium">Minutes</span>
+          <input
+            name="durationMinutes"
+            type="number"
+            min={0}
+            defaultValue={kind === "sermon" ? 30 : 5}
+            key={kind}
+            className={`${field} w-20`}
+          />
+        </label>
+      </div>
+
+      {kind === "song" ? (
+        <div className="space-y-2 border-t border-amber-200 pt-3 dark:border-amber-900">
+          {!newSong ? (
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="space-y-1 text-xs">
+                <span className="block font-medium">Song</span>
+                <select name="songId" className={`${field} w-56`} defaultValue="">
+                  <option value="">—</option>
+                  {shared.songOptions.map((song) => (
+                    <option key={song.id} value={song.id}>
+                      {song.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => setNewSong(true)}
+                className="pb-2 text-xs font-medium text-amber-800 hover:underline dark:text-amber-400"
+              >
+                or add a new song
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="space-y-1 text-xs">
+                  <span className="block font-medium">New song</span>
+                  <input
+                    name="newSongTitle"
+                    placeholder="Cornerstone"
+                    className={`${field} w-56`}
+                  />
+                </label>
+                <label className="space-y-1 text-xs">
+                  <span className="block font-medium">YouTube link (optional)</span>
+                  <input
+                    name="newSongSourceUrl"
+                    placeholder="https://www.youtube.com/watch?v=…"
+                    className={`${field} w-64`}
+                  />
+                </label>
+                {shared.songOptions.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setNewSong(false)}
+                    className="pb-2 text-xs font-medium text-amber-800 hover:underline dark:text-amber-400"
+                  >
+                    or pick one you have
+                  </button>
+                ) : null}
+              </div>
+
+              <MediaField
+                name="newSongAudioSrc"
+                label="Recording"
+                tenant={shared.tenant}
+                accept="audio/*,video/*"
+                kinds={["audio", "video"]}
+                uploadsEnabled={shared.uploadsEnabled}
+                hint="Upload the mp3 and the lyrics are transcribed into slides in the background. Only recordings your church has the right to use."
+              />
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {kind === "worship" ? (
+        <p className="text-xs text-stone-600 dark:text-stone-400">
+          A block to hang songs off — add them inside it once it&apos;s here, and it takes its
+          length from them.
+        </p>
+      ) : null}
+
+      <div className="flex items-center gap-2">
+        <button
+          type="submit"
+          className="rounded-lg bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-800"
+        >
+          Add
+        </button>
+        <button
+          type="button"
+          onClick={onDone}
+          className="px-2 py-2 text-sm text-stone-500 hover:underline"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** One empty quarter hour: the invitation to plan something at that time. */
+function EmptySlot({
+  shared,
+  minutes,
+  placement,
+  showLabel,
+  nextItemId,
+}: {
+  shared: Shared;
+  minutes: number;
+  placement: Placement;
+  /** Kept visible while there's nothing planned — an empty page of faint plus
+      signs tells someone nothing about what to do with it. */
+  showLabel: boolean;
+  /** The activity this gap sits above, so a drop knows what it lands before. */
+  nextItemId: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [over, setOver] = useState(false);
+  const dragging = Boolean(shared.drag.id);
+
+  if (open) {
+    return <AddActivityForm shared={shared} placement={placement} onDone={() => setOpen(false)} />;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      onDragOver={(event) => {
+        if (!dragging) return;
+        event.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(event) => {
+        if (!dragging) return;
+        event.preventDefault();
+        setOver(false);
+        // Dropping on open clock puts it back on the running order itself,
+        // which is the only way to get a song out of the worship set.
+        shared.drag.drop({ parentId: null, beforeItemId: nextItemId });
+      }}
+      className={`group flex w-full items-center gap-3 rounded-lg border border-dashed px-3 py-2 text-left text-sm hover:border-amber-400 hover:text-amber-700 dark:hover:text-amber-500 ${
+        over
+          ? "border-amber-500 bg-amber-50/60 text-amber-700 dark:bg-amber-950/20"
+          : "border-transparent text-stone-400"
+      }`}
+    >
+      <span className="text-lg leading-none">{dragging ? "↳" : "+"}</span>
+      <span
+        className={`transition group-hover:opacity-100 group-focus:opacity-100 ${
+          showLabel || dragging ? "" : "opacity-0"
+        }`}
+      >
+        {dragging ? "Move it here" : `Add an activity at ${formatTimeOfDay(minutes)}`}
+      </span>
+    </button>
+  );
+}
+
+/** The embedded player for whatever this activity carries. */
+function AttachmentPlayer({ item }: { item: PlanItem }) {
+  const attachment = item.attachment;
+
+  if (attachment?.kind === "youtube" && attachment.videoId) {
+    return (
+      <iframe
+        title={item.title}
+        src={`https://www.youtube.com/embed/${attachment.videoId}`}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
+        allowFullScreen
+        className="aspect-video w-full max-w-lg rounded-lg bg-black"
+      />
+    );
+  }
+
+  if (attachment?.kind === "image" && attachment.url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={attachment.url} alt="" className="max-h-64 rounded-lg" />;
+  }
+
+  if (attachment?.kind === "video" && attachment.url) {
+    return (
+      <video
+        controls
+        preload="metadata"
+        src={attachment.url}
+        className="max-h-64 w-full max-w-lg rounded-lg bg-black"
+      />
+    );
+  }
+
+  const audio = attachment?.kind === "audio" ? attachment.url : item.songAudioUrl;
+  if (audio) return <audio controls preload="none" src={audio} className="w-full max-w-lg" />;
+
+  if (attachment?.url) {
+    return (
+      <a
+        href={attachment.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs font-medium text-amber-700 hover:underline dark:text-amber-500"
+      >
+        Open the attached file
+      </a>
+    );
+  }
+
+  return <p className="text-xs text-stone-500">Nothing attached to this one yet.</p>;
+}
+
+function ActivityBlock({
+  shared,
+  entry,
+  index,
+  count,
+}: {
+  shared: Shared;
+  entry: PlanEntry<PlanItem>;
+  index: number;
+  count: number;
+}) {
+  const [panel, setPanel] = useState<"none" | "edit" | "slides" | "media">("none");
+  const [addingChild, setAddingChild] = useState(false);
+  const [over, setOver] = useState<"before" | "inside" | null>(null);
+  const item = entry.item;
+  const minutes = Math.round(item.durationSeconds / 60);
+  const runsFor = Math.round(entry.endMinutes - entry.startMinutes);
+  const holdsOthers = entry.children.length > 0;
+  const slides = effectiveSlides({ slides: item.slides, songSlides: item.songSlides });
+  const ownSlides = item.slides.length > 0;
+  const playable = Boolean(item.attachment ?? item.songAudioUrl);
+
+  const dragging = shared.drag.id;
+  const elsewhere = Boolean(dragging) && dragging !== item.id;
+
+  return (
+    <div
+      // Dropping on a block puts the dragged item immediately above it, at that
+      // block's own level — which is how a song gets dragged into the set it's
+      // dropped onto, and back out onto the running order.
+      onDragOver={(event) => {
+        if (!elsewhere) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setOver("before");
+      }}
+      onDragLeave={() => setOver(null)}
+      onDrop={(event) => {
+        if (!elsewhere) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setOver(null);
+        shared.drag.drop({ parentId: item.parentId, beforeItemId: item.id });
+      }}
+      className={`rounded-xl border bg-white dark:bg-stone-900 ${
+        over === "before"
+          ? "border-amber-500 shadow-[0_-3px_0_0_theme(colors.amber.500)]"
+          : "border-stone-200 dark:border-stone-800"
+      } ${dragging === item.id ? "opacity-50" : ""}`}
+    >
+      <div className="flex flex-wrap items-center gap-2 px-2 py-1.5">
+        <span
+          draggable
+          onDragStart={(event) => {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", item.id);
+            shared.drag.begin(item.id);
+          }}
+          onDragEnd={() => shared.drag.end()}
+          title="Drag to move it"
+          aria-hidden
+          className="-my-1 cursor-grab px-1 text-stone-300 select-none hover:text-stone-500 active:cursor-grabbing dark:text-stone-600"
+        >
+          ⠿
+        </span>
+        <span className="w-20 shrink-0 font-mono text-sm text-amber-700 dark:text-amber-500">
+          {entry.startsAt}
+          {item.startsAt ? <span title="Pinned to this time"> ·</span> : null}
+        </span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+            KIND_STYLE[item.kind] ?? KIND_STYLE.other
+          }`}
+        >
+          {item.kind}
+        </span>
+        {/* The picture, if there is one, sits in the row itself — a thumbnail
+            says what a filename never does. */}
+        {item.attachment?.kind === "image" && item.attachment.url ? (
+          <button
+            type="button"
+            onClick={() => setPanel(panel === "media" ? "none" : "media")}
+            title="Show it bigger"
+            className="h-8 w-12 shrink-0 overflow-hidden rounded border border-stone-200 dark:border-stone-700"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={item.attachment.url} alt="" className="h-full w-full object-cover" />
+          </button>
+        ) : null}
+
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</span>
+
+        {item.owner ? (
+          <span className="hidden text-xs text-stone-500 sm:inline">{item.owner}</span>
+        ) : null}
+        <span className="text-xs text-stone-500">{holdsOthers ? runsFor : minutes}m</span>
+
+        {/* Anything with a player behind it opens one in place, so checking the
+            clip is the right clip doesn't mean leaving the plan. */}
+        {playable ? (
+          <button
+            type="button"
+            onClick={() => setPanel(panel === "media" ? "none" : "media")}
+            title="Play it here"
+            className="rounded border border-stone-300 px-1.5 py-0.5 text-xs hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
+          >
+            {panel === "media" ? "▾" : "▶"}
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => setPanel(panel === "slides" ? "none" : "slides")}
+          className={`rounded border px-1.5 py-0.5 text-xs font-medium ${
+            slides.length
+              ? "border-amber-400 text-amber-800 dark:text-amber-400"
+              : "border-stone-300 text-stone-500 dark:border-stone-700"
+          }`}
+        >
+          {slides.length ? `${slides.length} slides` : "slides"}
+          {slides.length && !ownSlides ? <span className="font-normal"> (song)</span> : null}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPanel(panel === "edit" ? "none" : "edit")}
+          className="rounded border border-stone-300 px-1.5 py-0.5 text-xs font-medium hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
+        >
+          {panel === "edit" ? "close" : "edit"}
+        </button>
+      </div>
+
+      {entry.overlapsPrevious ? (
+        <p className="border-t border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+          Pinned to {entry.startsAt}, but what&apos;s before it hasn&apos;t finished by then.
+        </p>
+      ) : null}
+
+      {panel === "media" ? (
+        <div className="space-y-2 border-t border-stone-100 p-3 dark:border-stone-800">
+          <AttachmentPlayer item={item} />
+          <div className="flex flex-wrap gap-4 text-xs">
+            {item.songSlug ? (
+              <>
+                <a
+                  href={`/admin/songs/${item.songSlug}`}
+                  className="font-medium text-amber-700 hover:underline dark:text-amber-500"
+                >
+                  Song page
+                </a>
+                <a
+                  href={`/present/songs/${item.songSlug}`}
+                  className="font-medium text-amber-700 hover:underline dark:text-amber-500"
+                >
+                  Present with the recording
+                </a>
+              </>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {panel === "slides" ? (
+        <div className="border-t border-stone-200 p-3 dark:border-stone-800">
+          <ActivitySlides
+            tenant={shared.tenant}
+            serviceId={shared.serviceId}
+            itemId={item.id}
+            initialSlides={item.slides}
+            songSlides={item.songSlides}
+            songSlug={item.songSlug}
+            sources={shared.slideSources}
+          />
+        </div>
+      ) : null}
+
+      {panel === "edit" ? (
+        <div className="space-y-3 border-t border-stone-200 p-3 dark:border-stone-800">
+          <form action={updateServiceItemAction} className="space-y-3">
+            <input type="hidden" name="tenant" value={shared.tenant} />
+            <input type="hidden" name="serviceId" value={shared.serviceId} />
+            <input type="hidden" name="itemId" value={item.id} />
+
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="space-y-1 text-xs">
+                <span className="block font-medium">Activity</span>
+                <select name="kind" defaultValue={item.kind} className={field}>
+                  {KINDS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1 text-xs">
+                <span className="block font-medium">Called</span>
+                <input name="title" defaultValue={item.title} className={`${field} w-56`} />
+              </label>
+
+              <label className="space-y-1 text-xs">
+                <span className="block font-medium">Who</span>
+                <input
+                  name="owner"
+                  defaultValue={item.owner}
+                  placeholder="Worship team"
+                  className={`${field} w-40`}
+                />
+              </label>
+
+              <label className="space-y-1 text-xs">
+                <span className="block font-medium">Starts</span>
+                <input
+                  name="startsAt"
+                  defaultValue={item.startsAt ?? ""}
+                  placeholder="follows on"
+                  className={`${field} w-24 font-mono`}
+                />
+              </label>
+
+              <label className="space-y-1 text-xs">
+                <span className="block font-medium">Minutes</span>
+                <input
+                  name="durationMinutes"
+                  type="number"
+                  min={0}
+                  defaultValue={minutes}
+                  disabled={holdsOthers}
+                  className={`${field} w-20 disabled:opacity-50`}
+                />
+              </label>
+            </div>
+
+            <p className="text-xs text-stone-500">
+              Leave the start empty and it begins when the item before it ends.
+              {holdsOthers ? " This one is as long as what's inside it." : ""}
+            </p>
+
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="space-y-1 text-xs">
+                <span className="block font-medium">Song</span>
+                <select name="songId" defaultValue={item.songId ?? ""} className={field}>
+                  <option value="">—</option>
+                  {shared.songOptions.map((song) => (
+                    <option key={song.id} value={song.id}>
+                      {song.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="min-w-56 flex-1 text-xs">
+                <MediaField
+                  key={item.mediaUrl ?? "none"}
+                  name="mediaUrl"
+                  label="Picture or clip"
+                  tenant={shared.tenant}
+                  defaultValue={item.mediaUrl}
+                  uploadsEnabled={shared.uploadsEnabled}
+                  kinds={["image", "video", "audio"]}
+                  hint="Shows on this row, and goes on the screen when it's a picture and there are no slides."
+                />
+              </div>
+            </div>
+
+            <label className="block space-y-1 text-xs">
+              <span className="block font-medium">Notes</span>
+              <textarea
+                name="notes"
+                defaultValue={item.notes}
+                rows={2}
+                placeholder="Anything the person running this needs to know"
+                className={`${field} w-full`}
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800"
+            >
+              Save
+            </button>
+          </form>
+
+          <div className="flex flex-wrap items-center gap-4 border-t border-stone-200 pt-3 text-xs dark:border-stone-800">
+            {[
+              { direction: "up", label: "Move up", disabled: index === 0 },
+              { direction: "down", label: "Move down", disabled: index === count - 1 },
+            ].map((move) => (
+              <form key={move.direction} action={moveServiceItemAction}>
+                <input type="hidden" name="tenant" value={shared.tenant} />
+                <input type="hidden" name="serviceId" value={shared.serviceId} />
+                <input type="hidden" name="itemId" value={item.id} />
+                <input type="hidden" name="direction" value={move.direction} />
+                <button
+                  type="submit"
+                  disabled={move.disabled}
+                  className="text-stone-500 hover:underline disabled:opacity-40"
+                >
+                  {move.label}
+                </button>
+              </form>
+            ))}
+            <form action={deleteServiceItemAction}>
+              <input type="hidden" name="tenant" value={shared.tenant} />
+              <input type="hidden" name="serviceId" value={shared.serviceId} />
+              <input type="hidden" name="itemId" value={item.id} />
+              <button type="submit" className="text-red-700 hover:underline dark:text-red-400">
+                Remove{holdsOthers ? " (and what's inside it)" : ""}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Everything inside this activity: the songs in the set, in order. */}
+      {entry.depth === 0 ? (
+        <div
+          onDragOver={(event) => {
+            if (!elsewhere) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setOver("inside");
+          }}
+          onDragLeave={() => setOver(null)}
+          onDrop={(event) => {
+            if (!elsewhere) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setOver(null);
+            shared.drag.drop({ parentId: item.id, beforeItemId: null });
+          }}
+          className={`space-y-2 border-t p-3 pl-8 ${
+            over === "inside"
+              ? "border-amber-500 bg-amber-50/60 dark:bg-amber-950/20"
+              : "border-stone-100 dark:border-stone-800"
+          }`}
+        >
+          {entry.children.map((child, childIndex) => (
+            <ActivityBlock
+              key={child.item.id}
+              shared={shared}
+              entry={child}
+              index={childIndex}
+              count={entry.children.length}
+            />
+          ))}
+
+          {addingChild ? (
+            <AddActivityForm
+              shared={shared}
+              placement={{
+                parentId: item.id,
+                afterItemId: entry.children[entry.children.length - 1]?.item.id,
+              }}
+              onDone={() => setAddingChild(false)}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAddingChild(true)}
+              className="text-xs font-medium text-stone-500 hover:text-amber-700 hover:underline dark:hover:text-amber-500"
+            >
+              + Add something inside {item.title}
+              {elsewhere ? " — or drop it here" : ""}
+            </button>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export default function ServicePlanner({
+  tenant,
+  serviceId,
+  serviceStartsAt,
+  items,
+  songOptions,
+  slideSources,
+  uploadsEnabled,
+}: {
+  tenant: string;
+  serviceId: string;
+  serviceStartsAt: string;
+  items: PlanItem[];
+  songOptions: { id: string; title: string }[];
+  slideSources: SlideSource[];
+  uploadsEnabled: boolean;
+}) {
+  const router = useRouter();
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropError, setDropError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+
+  const drag: Drag = {
+    id: draggingId,
+    begin: (id) => {
+      setDraggingId(id);
+      setDropError(null);
+    },
+    end: () => setDraggingId(null),
+    drop: (target) => {
+      const itemId = draggingId;
+      setDraggingId(null);
+      if (!itemId) return;
+
+      startTransition(async () => {
+        const result = await moveItemToAction({ tenant, serviceId, itemId, ...target });
+        if (!result.ok) setDropError(result.error ?? "That didn't move.");
+        router.refresh();
+      });
+    },
+  };
+
+  const shared: Shared = {
+    tenant,
+    serviceId,
+    songOptions,
+    slideSources,
+    uploadsEnabled,
+    drag,
+  };
+
+  const { rows, count } = useMemo(() => {
+    const plan = layoutPlan(items, serviceStartsAt);
+    const slots = timeSlots(plan.startMinutes, plan.endMinutes, STEP_MINUTES);
+    const first = slots[0];
+    const lastIndex = slots.length - 1;
+
+    // Every activity is filed under a tick, clamped at both ends so one pinned
+    // before the service starts, or dragged out past the ruler, still shows.
+    // The index it carries is its place in the running order, which is what
+    // decides whether it can still be moved up.
+    const startingAt = new Map<number, { entry: PlanEntry<PlanItem>; index: number }[]>();
+    plan.tree.forEach((entry, index) => {
+      const slot = Math.min(
+        lastIndex,
+        Math.max(0, Math.floor((entry.startMinutes - first) / STEP_MINUTES)),
+      );
+      startingAt.set(slot, [...(startingAt.get(slot) ?? []), { entry, index }]);
+    });
+
+    return {
+      count: plan.tree.length,
+      rows: slots.map((minutes, slotIndex) => {
+        const starting = startingAt.get(slotIndex) ?? [];
+        // A tick the middle of a long sermon runs through isn't free to plan on.
+        const covered = plan.tree.some(
+          (entry) =>
+            entry.startMinutes < minutes + STEP_MINUTES && entry.endMinutes > minutes,
+        );
+
+        // The new activity slots in after whatever is already running by then.
+        const previous = [...plan.tree]
+          .reverse()
+          .find((entry) => entry.startMinutes <= minutes);
+
+        // What a drop on this gap should land above: the next thing planned.
+        const next = plan.tree.find((entry) => entry.startMinutes > minutes);
+
+        return {
+          minutes,
+          starting,
+          free: starting.length === 0 && !covered,
+          nextItemId: next?.item.id ?? null,
+          placement: {
+            startsAt: toClockValue(minutes),
+            ...(previous
+              ? { afterItemId: previous.item.id }
+              : plan.tree[0]
+                ? { beforeItemId: plan.tree[0].item.id }
+                : {}),
+          } satisfies Placement,
+        };
+      }),
+    };
+  }, [items, serviceStartsAt]);
+
+  return (
+    <div>
+      {dropError ? (
+        <p className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          {dropError}
+        </p>
+      ) : null}
+
+      <div className="divide-y divide-stone-100 dark:divide-stone-800/60">
+        {rows.map((row) => (
+          <div key={row.minutes} className="flex gap-2 py-0.5">
+            <span className="w-16 shrink-0 pt-3 text-right font-mono text-xs text-stone-400">
+              {formatTimeOfDay(row.minutes)}
+            </span>
+
+            <div className="min-w-0 flex-1 space-y-2">
+              {row.starting.map(({ entry, index }) => (
+                <ActivityBlock
+                  key={entry.item.id}
+                  shared={shared}
+                  entry={entry}
+                  index={index}
+                  count={count}
+                />
+              ))}
+
+              {row.free ? (
+                <EmptySlot
+                  shared={shared}
+                  minutes={row.minutes}
+                  placement={row.placement}
+                  showLabel={items.length === 0}
+                  nextItemId={row.nextItemId}
+                />
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

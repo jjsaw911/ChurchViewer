@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200" role="img" aria-label="ChurchViewer — present worship, inspire people">
+  <defs>
+    <linearGradient id="frame" x1="46" y1="164" x2="146" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F7BFB" />
+      <stop offset="1" stop-color="#A855F7" />
+    </linearGradient>
+    <linearGradient id="word" x1="356" y1="0" x2="560" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6C8BFF" />
+      <stop offset="1" stop-color="#A855F7" />
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#6C8BFF" stop-opacity="0.55" />
+      <stop offset="1" stop-color="#6C8BFF" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- The full lockup, for anywhere outside the app: a README, a share card,
+       a slide. In the app the mark and the name are separate so the name can be
+       real text. -->
+  <rect width="640" height="200" rx="36" fill="#0E1117" />
+
+  <g transform="translate(32 36)">
+    <ellipse cx="64" cy="74" rx="46" ry="26" fill="url(#glow)" />
+    <path
+      d="M38 96 H26 A12 12 0 0 1 14 84 V44 A12 12 0 0 1 26 32 H102 A12 12 0 0 1 114 44 V84 A12 12 0 0 1 102 96 H90"
+      fill="none"
+      stroke="url(#frame)"
+      stroke-width="7"
+      stroke-linecap="round"
+    />
+    <rect x="60" y="38" width="8" height="24" rx="1.5" fill="#232B3E" />
+    <rect x="53" y="45" width="22" height="7" rx="1.5" fill="#232B3E" />
+    <path d="M64 54 L86 72 V96 H42 V72 Z" fill="#232B3E" />
+    <path d="M57 96 V82 a7 7 0 0 1 14 0 V96 Z" fill="url(#frame)" />
+  </g>
+
+  <text
+    x="184"
+    y="108"
+    font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+    font-size="58"
+    font-weight="600"
+    letter-spacing="-1"
+  >
+    <tspan fill="#E7E5E4">church</tspan><tspan fill="url(#word)">viewer</tspan>
+  </text>
+  <text
+    x="186"
+    y="140"
+    font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+    font-size="16"
+    letter-spacing="4.5"
+    fill="#7B7A78"
+  >
+    PRESENT WORSHIP. INSPIRE PEOPLE.
+  </text>
+</svg>

@@ -5,6 +5,7 @@ import { transcribeAudio, tidySlides } from "@/lib/ai/openai";
 import { buildSlides, DEFAULT_SLIDE_OPTIONS } from "@/lib/songs/slides";
 import { rootUrl } from "@/lib/env";
 import { playbackUrl } from "@/lib/storage";
+import { slugify } from "@/lib/tenant";
 import type { SlidePayload } from "@/lib/songs/types";
 
 /** OpenAI rejects anything larger; catching it here gives a usable message. */
@@ -21,6 +22,52 @@ export async function getSong(churchId: string, slug: string) {
 
 export async function listSongs(churchId: string) {
   return db.select().from(songs).where(eq(songs.churchId, churchId)).orderBy(songs.title);
+}
+
+/**
+ * Add a song to the library from a title and, usually, a recording.
+ *
+ * Deliberately thinner than the song form: this is the path taken while
+ * planning a service, where the answer to "which song?" is a name and an mp3.
+ * Everything else — the writer, the CCLI number, the timing — can be filled in
+ * later on the song's own page, and shouldn't stand between someone and a plan.
+ */
+export async function createSong(input: {
+  churchId: string;
+  title: string;
+  audioSrc?: string | null;
+  /** A video to take the audio out of, when that's what the church has. */
+  videoSrc?: string | null;
+  sourceUrl?: string | null;
+}) {
+  const base = slugify(input.title) || "song";
+
+  // Two services can each add "Way Maker"; suffix until the address is free
+  // rather than failing on the unique index in the middle of planning.
+  let slug = base;
+  for (let attempt = 2; attempt < 50; attempt++) {
+    const [clash] = await db
+      .select({ id: songs.id })
+      .from(songs)
+      .where(and(eq(songs.churchId, input.churchId), eq(songs.slug, slug)))
+      .limit(1);
+    if (!clash) break;
+    slug = `${base}-${attempt}`;
+  }
+
+  const [created] = await db
+    .insert(songs)
+    .values({
+      churchId: input.churchId,
+      slug,
+      title: input.title,
+      audioSrc: input.audioSrc ?? null,
+      videoSrc: input.videoSrc ?? null,
+      sourceUrl: input.sourceUrl ?? null,
+    })
+    .returning();
+
+  return created;
 }
 
 /**

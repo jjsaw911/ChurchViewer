@@ -3,7 +3,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { resolveAccess } from "@/lib/admin/guard";
 import { getChurchBySlug } from "@/lib/churches";
 import { isOpenAiConfigured } from "@/lib/ai/openai";
-import { enqueueTranscription } from "@/lib/songs/queue";
+import { enqueueSongWork } from "@/lib/songs/queue";
 import { getSong } from "@/lib/songs/service";
 
 /** Resolve the caller against the church, or return the response to send back. */
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const queued = await enqueueTranscription({
+  const queued = await enqueueSongWork({
     churchId: resolved.church.id,
     songId: resolved.song.id,
     tidy: body?.tidy !== false,

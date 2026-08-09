@@ -1,5 +1,7 @@
 import type { SlidePayload, TranscriptPayload } from "@/lib/songs/types";
 import {
+  type AnyPgColumn,
+  bigint,
   boolean,
   date,
   index,
@@ -183,8 +185,10 @@ export const sermons = pgTable(
  */
 export const songStatusEnum = pgEnum("song_status", [
   "draft",
-  /** Waiting for the transcription worker to pick it up. */
+  /** Waiting for the worker to pick it up. */
   "queued",
+  /** Pulling the audio track out of a video before anything can be heard. */
+  "extracting",
   "transcribing",
   "ready",
   "failed",
@@ -204,6 +208,20 @@ export const songs = pgTable(
     ccliNumber: text("ccli_number").notNull().default(""),
     sourceUrl: text("source_url"),
     audioSrc: text("audio_src"),
+    /**
+     * A video file the church holds, to take the audio out of.
+     *
+     * Kept apart from `audioSrc` because they are different jobs: this is the
+     * thing that came off the desk or the camera, and `audioSrc` is what the
+     * worker made from it. Keeping the original means the extraction can be run
+     * again — with different settings, or after a bad take — without asking
+     * anyone to find and upload the file a second time.
+     *
+     * A YouTube link doesn't belong here. Pulling audio off YouTube is against
+     * their terms whoever wrote the song; a church that owns the upload can
+     * fetch the original from YouTube Studio and put it here.
+     */
+    videoSrc: text("video_src"),
     durationSeconds: integer("duration_seconds").notNull().default(0),
     status: songStatusEnum("status").notNull().default("draft"),
     /** Set when a worker claims the job; also how a dead worker's job is reclaimed. */
@@ -221,6 +239,54 @@ export const songs = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("songs_church_slug_key").on(t.churchId, t.slug)],
+);
+
+export const mediaAssetKindEnum = pgEnum("media_asset_kind", [
+  "audio",
+  "video",
+  "image",
+  "captions",
+  "other",
+]);
+
+/**
+ * Everything the church has uploaded, in one list.
+ *
+ * Files used to exist only as a location string on whatever row happened to
+ * need them — a song's audio, a series' artwork — which meant nobody could see
+ * what the church had, nothing could be used twice, and deleting a row quietly
+ * orphaned bytes in the bucket. This is the library those locations point into.
+ *
+ * The file itself still lives in the bucket (or on someone else's server); this
+ * is the record of it, and it's what the media picker searches.
+ */
+export const mediaAssets = pgTable(
+  "media_assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    churchId: uuid("church_id")
+      .notNull()
+      .references(() => churches.id, { onDelete: "cascade" }),
+    /** `gcs:<object-key>` or an external `https://` URL — see `lib/storage.ts`. */
+    location: text("location").notNull(),
+    /** What it was called when it arrived; kept for searching. */
+    filename: text("filename").notNull(),
+    /** What people call it. Starts as a tidied filename and can be renamed. */
+    title: text("title").notNull(),
+    contentType: text("content_type").notNull().default(""),
+    kind: mediaAssetKindEnum("kind").notNull().default("other"),
+    /** Null when we never saw the file itself — a pasted link, or a backfill. */
+    bytes: bigint("bytes", { mode: "number" }),
+    notes: text("notes").notNull().default(""),
+    uploadedBy: uuid("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // One row per file: uploading the same object twice, or registering it from
+    // two forms at once, should not put it in the library twice.
+    uniqueIndex("media_assets_church_location_key").on(t.churchId, t.location),
+    index("media_assets_church_created_idx").on(t.churchId, t.createdAt),
+  ],
 );
 
 /** One Sunday (or midweek, or wedding) — an ordered run sheet with times. */
@@ -253,6 +319,8 @@ export const serviceItemKindEnum = pgEnum("service_item_kind", [
   "offering",
   "announcements",
   "communion",
+  /** A block that holds songs — the worship set, planned as one thing. */
+  "worship",
   "other",
 ]);
 
@@ -263,12 +331,36 @@ export const serviceItems = pgTable(
     serviceId: uuid("service_id")
       .notNull()
       .references(() => services.id, { onDelete: "cascade" }),
-    /** Order within the service; gaps are fine, only the sort matters. */
+    /**
+     * The activity this one sits inside — a song within the worship set. Null
+     * for the top level. One level deep is all the planner offers: a running
+     * order that nests further stops being readable on a stage.
+     */
+    parentId: uuid("parent_id").references((): AnyPgColumn => serviceItems.id, {
+      onDelete: "cascade",
+    }),
+    /** Order among its siblings; gaps are fine, only the sort matters. */
     position: integer("position").notNull(),
     kind: serviceItemKindEnum("kind").notNull().default("other"),
     title: text("title").notNull(),
     /** How long it's expected to take — what builds the timeline. */
     durationSeconds: integer("duration_seconds").notNull().default(300),
+    /**
+     * A wall-clock start pinned by hand, `HH:MM` — set when someone clicks a
+     * time on the planner rather than dropping the item on the end. Null means
+     * "starts when the item before it finishes", which is how most of a service
+     * behaves: change one duration and everything after it shifts.
+     */
+    startsAt: text("starts_at"),
+    /**
+     * What goes on the screen during this item. Announcements, a scripture
+     * reading, a welcome — anything typed by hand lives here.
+     *
+     * A song item usually leaves this empty and shows the linked song's slides,
+     * which stay tied to the recording's timing. Filling it in overrides that
+     * for this service only.
+     */
+    slides: jsonb("slides").$type<SlidePayload[]>().notNull().default([]),
     notes: text("notes").notNull().default(""),
     /** Set when this item is one of the church's songs. */
     songId: uuid("song_id").references(() => songs.id, { onDelete: "set null" }),
@@ -286,5 +378,8 @@ export const serviceItems = pgTable(
     /** Who's doing it — "Worship team", "Pastor Alina". */
     owner: text("owner").notNull().default(""),
   },
-  (t) => [index("service_items_service_position_idx").on(t.serviceId, t.position)],
+  (t) => [
+    index("service_items_service_position_idx").on(t.serviceId, t.position),
+    index("service_items_parent_idx").on(t.parentId),
+  ],
 );

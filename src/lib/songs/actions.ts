@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { songs } from "@/db/schema";
 import { requireChurchAccess } from "@/lib/admin/guard";
 import { parseClock } from "@/lib/format";
+import { enqueueSongWork } from "@/lib/songs/queue";
 import { retimeSlides } from "@/lib/songs/slides";
 import { deleteObject, isGcsLocation } from "@/lib/storage";
 import { slugify } from "@/lib/tenant";
@@ -68,6 +69,7 @@ export async function saveSongAction(_previous: SongState, formData: FormData): 
     ccliNumber: value(formData, "ccliNumber"),
     sourceUrl,
     audioSrc: optional(formData, "audioSrc"),
+    videoSrc: optional(formData, "videoSrc"),
     durationSeconds: parseClock(value(formData, "duration")),
   };
 
@@ -133,6 +135,31 @@ export async function saveSlidesAction(input: {
 
   revalidatePath(`/s/${input.tenant}`, "layout");
   return { ok: true };
+}
+
+/**
+ * Put the song in the worker's queue.
+ *
+ * Separate from the editor's "Transcribe" button because a video needs work
+ * doing to it before anything can be transcribed, and that work is worth doing
+ * on a server with no OpenAI key at all — the church still ends up with an
+ * audio file that plays.
+ */
+export async function queueSongWorkAction(formData: FormData): Promise<void> {
+  const tenant = value(formData, "tenant");
+  const { church } = await requireChurchAccess(tenant);
+
+  const slug = value(formData, "slug");
+  const [song] = await db
+    .select({ id: songs.id })
+    .from(songs)
+    .where(and(eq(songs.churchId, church.id), eq(songs.slug, slug)))
+    .limit(1);
+  if (!song) redirect("/admin/songs");
+
+  await enqueueSongWork({ churchId: church.id, songId: song.id, tidy: true });
+
+  revalidatePath(`/s/${tenant}`, "layout");
 }
 
 export async function deleteSongAction(formData: FormData): Promise<void> {

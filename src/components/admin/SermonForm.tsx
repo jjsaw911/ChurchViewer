@@ -194,6 +194,7 @@ export default function SermonForm({ tenant, seriesOptions, uploadsEnabled, serm
           tenant={tenant}
           defaultValue={initial("mediaSrc", sermon?.mediaSrc ?? "")}
           accept="video/*,audio/*"
+          kinds={["video", "audio"]}
           uploadsEnabled={uploadsEnabled}
           required
         />
@@ -203,6 +204,7 @@ export default function SermonForm({ tenant, seriesOptions, uploadsEnabled, serm
           tenant={tenant}
           defaultValue={initial("posterSrc", sermon?.posterSrc ?? "")}
           accept="image/*"
+          kinds={["image"]}
           uploadsEnabled={uploadsEnabled}
           hint="Shown on the library grid and before playback starts."
         />
@@ -212,6 +214,7 @@ export default function SermonForm({ tenant, seriesOptions, uploadsEnabled, serm
           tenant={tenant}
           defaultValue={initial("captionsSrc", sermon?.captionsSrc ?? "")}
           accept=".vtt,text/vtt"
+          kinds={["captions"]}
           uploadsEnabled={uploadsEnabled}
           hint="A WebVTT file, if you have one."
         />

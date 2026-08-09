@@ -58,12 +58,12 @@ const statusOf = async (id: string) => {
 };
 
 test("two workers claim different jobs, and never the same one", async () => {
-  const { db, churches, claimNextJob, enqueueTranscription } = await ctx();
+  const { db, churches, claimNextJob, enqueueSongWork } = await ctx();
   const churchId = await scratchChurch();
   const first = await makeSong(churchId, "one");
   const second = await makeSong(churchId, "two");
-  await enqueueTranscription({ churchId, songId: first, tidy: true });
-  await enqueueTranscription({ churchId, songId: second, tidy: true });
+  await enqueueSongWork({ churchId, songId: first, tidy: true });
+  await enqueueSongWork({ churchId, songId: second, tidy: true });
 
   // Both claims race, exactly as two worker processes would.
   const [a, b] = await Promise.all([claimNextJob(), claimNextJob()]);
@@ -81,10 +81,10 @@ test("two workers claim different jobs, and never the same one", async () => {
 });
 
 test("a job whose worker died is reclaimed, not left stuck", async () => {
-  const { db, churches, songs, claimNextJob, enqueueTranscription } = await ctx();
+  const { db, churches, songs, claimNextJob, enqueueSongWork } = await ctx();
   const churchId = await scratchChurch();
   const songId = await makeSong(churchId, "abandoned");
-  await enqueueTranscription({ churchId, songId, tidy: true });
+  await enqueueSongWork({ churchId, songId, tidy: true });
 
   const claimed = await claimNextJob();
   assert.equal(claimed?.id, songId);
@@ -104,10 +104,10 @@ test("a job whose worker died is reclaimed, not left stuck", async () => {
 });
 
 test("failures retry, then stop and say why", async () => {
-  const { db, churches, claimNextJob, enqueueTranscription, markFailed, MAX_ATTEMPTS } = await ctx();
+  const { db, churches, claimNextJob, enqueueSongWork, markFailed, MAX_ATTEMPTS } = await ctx();
   const churchId = await scratchChurch();
   const songId = await makeSong(churchId, "doomed");
-  await enqueueTranscription({ churchId, songId, tidy: true });
+  await enqueueSongWork({ churchId, songId, tidy: true });
 
   for (let attempt = 1; attempt < MAX_ATTEMPTS; attempt++) {
     const job = await claimNextJob();
@@ -131,11 +131,11 @@ test("failures retry, then stop and say why", async () => {
 });
 
 test("a song with no audio is never queued", async () => {
-  const { db, churches, claimNextJob, enqueueTranscription } = await ctx();
+  const { db, churches, claimNextJob, enqueueSongWork } = await ctx();
   const churchId = await scratchChurch();
   const songId = await makeSong(churchId, "silent", null);
 
-  assert.equal(await enqueueTranscription({ churchId, songId, tidy: true }), false);
+  assert.equal(await enqueueSongWork({ churchId, songId, tidy: true }), false);
   assert.equal((await statusOf(songId)).status, "draft");
   assert.equal(await claimNextJob(), null);
 
@@ -143,12 +143,12 @@ test("a song with no audio is never queued", async () => {
 });
 
 test("one church cannot queue another church's song", async () => {
-  const { db, churches, enqueueTranscription } = await ctx();
+  const { db, churches, enqueueSongWork } = await ctx();
   const mine = await scratchChurch();
   const theirs = await scratchChurch();
   const songId = await makeSong(theirs, "not-yours");
 
-  assert.equal(await enqueueTranscription({ churchId: mine, songId, tidy: true }), false);
+  assert.equal(await enqueueSongWork({ churchId: mine, songId, tidy: true }), false);
   assert.equal((await statusOf(songId)).status, "draft");
 
   await db.delete(churches).where(eq(churches.id, mine));

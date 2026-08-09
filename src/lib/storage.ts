@@ -74,6 +74,32 @@ export async function createUploadUrl(input: {
   return { uploadUrl, location: gcsLocation(key) };
 }
 
+/**
+ * Put a file the server made into the bucket.
+ *
+ * The signed-URL path above is for browsers; this is for the worker, which
+ * produces files nobody uploaded — the audio it pulls out of a video. Same key
+ * layout, so everything sits under the church that owns it.
+ */
+export async function uploadFile(input: {
+  churchSlug: string;
+  filename: string;
+  contentType: string;
+  path: string;
+}): Promise<string> {
+  const key = buildObjectKey(input.churchSlug, input.filename);
+
+  await storage()
+    .bucket(env.storage.bucket)
+    .upload(input.path, {
+      destination: key,
+      contentType: input.contentType,
+      resumable: false,
+    });
+
+  return gcsLocation(key);
+}
+
 export async function deleteObject(location: string): Promise<void> {
   if (!isGcsLocation(location) || !env.storage.isConfigured) return;
   await storage()

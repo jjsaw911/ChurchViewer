@@ -16,6 +16,7 @@ export type SongFormValues = {
   ccliNumber: string;
   sourceUrl: string | null;
   audioSrc: string | null;
+  videoSrc: string | null;
   durationSeconds: number;
 };
 
@@ -110,16 +111,29 @@ export default function SongForm({
         </div>
       </div>
 
-      <fieldset className="space-y-3 border-t border-stone-200 pt-6 dark:border-stone-800">
-        <legend className="text-sm font-semibold">Audio for transcription</legend>
+      <fieldset className="space-y-5 border-t border-stone-200 pt-6 dark:border-stone-800">
+        <legend className="text-sm font-semibold">The recording</legend>
+
+        <MediaField
+          name="videoSrc"
+          label="Video file"
+          tenant={tenant}
+          defaultValue={initial("videoSrc", song?.videoSrc ?? "")}
+          accept="video/*"
+          kinds={["video"]}
+          uploadsEnabled={uploadsEnabled}
+          hint="A video your church holds — the service recording, the desk mix. The worker takes the audio out of it, which also gets it under the size the transcription API accepts. Not a YouTube link: use the field above for that."
+        />
+
         <MediaField
           name="audioSrc"
           label="Audio file"
           tenant={tenant}
           defaultValue={initial("audioSrc", song?.audioSrc ?? "")}
-          accept="audio/*,video/*"
+          accept="audio/*"
+          kinds={["audio"]}
           uploadsEnabled={uploadsEnabled}
-          hint="The recording the AI listens to. Upload one your church has the right to use, or paste a direct audio link — a YouTube page link won't work here."
+          hint="What actually gets transcribed. Fill this in yourself, or leave it and let the video above become it."
         />
       </fieldset>
 

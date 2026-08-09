@@ -1,19 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, asc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { serviceItems, services, songs } from "@/db/schema";
+import { songs } from "@/db/schema";
 import ServiceForm from "@/components/services/ServiceForm";
-import ServiceFlow, { type FlowItem } from "@/components/services/ServiceFlow";
+import ServicePlanner from "@/components/services/ServicePlanner";
 import { deleteServiceAction } from "@/lib/services/actions";
 import { requireChurchAccess } from "@/lib/admin/guard";
 import {
-  buildTimeline,
-  formatTimeOfDay,
-  parseTimeOfDay,
-  totalRuntimeSeconds,
-} from "@/lib/services/timeline";
+  getService,
+  loadPlanItems,
+  slideSources,
+  toPlanItems,
+  withAttachments,
+} from "@/lib/services/plan";
+import { formatTimeOfDay, layoutPlan, parseTimeOfDay } from "@/lib/services/timeline";
+import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Service plan" };
 
@@ -23,46 +26,21 @@ export default async function ServicePlanPage({
   const { tenant, slug } = await params;
   const { church } = await requireChurchAccess(tenant);
 
-  const [service] = await db
-    .select()
-    .from(services)
-    .where(and(eq(services.churchId, church.id), eq(services.slug, slug)))
-    .limit(1);
+  const service = await getService(church.id, slug);
   if (!service) notFound();
 
-  const items = await db
-    .select({
-      id: serviceItems.id,
-      title: serviceItems.title,
-      kind: serviceItems.kind,
-      durationSeconds: serviceItems.durationSeconds,
-      owner: serviceItems.owner,
-      notes: serviceItems.notes,
-      songId: serviceItems.songId,
-      mediaUrl: serviceItems.mediaUrl,
-      songSlug: songs.slug,
-    })
-    .from(serviceItems)
-    .leftJoin(songs, eq(songs.id, serviceItems.songId))
-    .where(eq(serviceItems.serviceId, service.id))
-    .orderBy(asc(serviceItems.position));
+  const items = await withAttachments(toPlanItems(await loadPlanItems(service.id)));
 
-  const songOptions = await db
-    .select({ id: songs.id, title: songs.title })
-    .from(songs)
-    .where(eq(songs.churchId, church.id))
-    .orderBy(asc(songs.title));
+  const [songOptions, sources] = await Promise.all([
+    db
+      .select({ id: songs.id, title: songs.title })
+      .from(songs)
+      .where(eq(songs.churchId, church.id))
+      .orderBy(asc(songs.title)),
+    slideSources(church.id, service.id),
+  ]);
 
-  const timeline = buildTimeline(items, service.startsAt);
-  const runtime = totalRuntimeSeconds(items);
-  const endsAt = formatTimeOfDay((parseTimeOfDay(service.startsAt) ?? 0) + runtime / 60);
-
-  // The flow only needs the wall-clock time folded in; everything else is the
-  // row as stored.
-  const flowItems: FlowItem[] = timeline.map(({ item, startsAt }) => ({
-    ...item,
-    startsAt,
-  }));
+  const plan = layoutPlan(items, service.startsAt);
 
   return (
     <div className="space-y-10">
@@ -80,25 +58,36 @@ export default async function ServicePlanPage({
               year: "numeric",
               timeZone: "UTC",
             })}{" "}
-            &middot; {formatTimeOfDay(parseTimeOfDay(service.startsAt) ?? 0)} &ndash; {endsAt}
-            {items.length ? ` · ${Math.round(runtime / 60)} min` : ""}
+            &middot; {formatTimeOfDay(parseTimeOfDay(service.startsAt) ?? 0)} &ndash;{" "}
+            {formatTimeOfDay(plan.endMinutes)}
+            {items.length
+              ? ` · ${Math.round(plan.endMinutes - plan.startMinutes)} min`
+              : ""}
           </p>
         </div>
         <Link
           href={`/present/services/${service.slug}`}
           className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800"
         >
-          Run sheet
+          Run it
         </Link>
       </header>
 
       <section className="space-y-3">
-        <h2 className="font-semibold">Running order</h2>
-        <ServiceFlow
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-semibold">Running order</h2>
+          <p className="text-sm text-stone-500">
+            Click a time to add what happens then.
+          </p>
+        </div>
+        <ServicePlanner
           tenant={tenant}
           serviceId={service.id}
-          items={flowItems}
+          serviceStartsAt={service.startsAt}
+          items={items}
           songOptions={songOptions}
+          slideSources={sources}
+          uploadsEnabled={env.storage.isConfigured}
         />
       </section>
 

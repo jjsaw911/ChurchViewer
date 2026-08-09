@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Logo, { LogoMark } from "@/components/Logo";
 import { getSessionUser } from "@/lib/auth/session";
 import { isPlatformAdminEmail } from "@/lib/env";
 import SignOutButton from "@/components/auth/SignOutButton";
@@ -11,8 +12,8 @@ export default async function MarketingLayout({ children }: LayoutProps<"/">) {
     <>
       <header className="border-b border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-900">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-4">
-          <Link href="/" className="text-lg font-semibold tracking-tight">
-            Church<span className="text-amber-700 dark:text-amber-500">Viewer</span>
+          <Link href="/" aria-label="ChurchViewer home">
+            <Logo />
           </Link>
           <nav className="flex items-center gap-5 text-sm font-medium">
             {user ? (
@@ -51,8 +52,9 @@ export default async function MarketingLayout({ children }: LayoutProps<"/">) {
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">{children}</main>
 
       <footer className="border-t border-stone-200 py-6 dark:border-stone-800">
-        <div className="mx-auto max-w-6xl px-6 text-sm text-stone-500">
-          ChurchViewer &middot; recorded services, on demand.
+        <div className="mx-auto flex max-w-6xl items-center gap-2 px-6 text-sm text-stone-500">
+          <LogoMark className="h-5 w-5" />
+          ChurchViewer &middot; present worship, inspire people.
         </div>
       </footer>
     </>

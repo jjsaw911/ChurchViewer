@@ -30,6 +30,51 @@ export function orderWithInsert(
 }
 
 /**
+ * The ids in order once a new item is inserted directly before `beforeItemId`.
+ *
+ * This is what a click on a time above everything already planned needs —
+ * "insert after" can't express "put it first". An id that isn't in the list
+ * appends, same reasoning as `orderWithInsert`.
+ */
+export function orderWithInsertBefore(
+  ids: readonly string[],
+  beforeItemId: string,
+  newId: string,
+): string[] {
+  const next = [...ids];
+  const at = beforeItemId ? next.indexOf(beforeItemId) : -1;
+  next.splice(at === -1 ? next.length : at, 0, newId);
+  return next;
+}
+
+/**
+ * The ids in order once `itemId` is dragged in front of `beforeItemId`.
+ *
+ * `ids` is the level the item is landing on, which may or may not be the one it
+ * came from — dragging a song out of the worship set is the same call as
+ * dragging it up the running order.
+ *
+ * Dropping something in front of itself is a real gesture: it means the gap
+ * directly above it, where the order doesn't change. Anchoring on itself would
+ * be read as an unknown id and send it to the end, so it anchors on whatever
+ * followed it instead.
+ */
+export function orderWithDrop(
+  ids: readonly string[],
+  itemId: string,
+  beforeItemId: string | null,
+): string[] {
+  const anchor =
+    beforeItemId === itemId ? (ids[ids.indexOf(itemId) + 1] ?? "") : (beforeItemId ?? "");
+
+  return orderWithInsertBefore(
+    ids.filter((id) => id !== itemId),
+    anchor,
+    itemId,
+  );
+}
+
+/**
  * Swap an item one place up or down, returning the new order.
  *
  * A move off either end is a no-op rather than an error — the buttons are
