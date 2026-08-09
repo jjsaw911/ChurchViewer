@@ -9,12 +9,33 @@ Storage. Designed to run on a single Google Compute Engine VM.
 
 ## Running it locally
 
+Postgres has to be running; everything else the setup script handles.
+
 ```sh
 npm install
-cp .env.example .env.local     # then set DATABASE_URL
-npm run db:migrate
-npm run db:seed                # optional demo church
+npm run setup -- --admin you@example.com
+npm run db:seed      # optional: a demo church with a few recordings
 npm run dev
+```
+
+`setup` writes `.env.local`, creates the database if it isn't there, and applies
+migrations. Run it again any time you're unsure what state a checkout is in —
+every step checks before it acts.
+
+To use the platform console over every church, give that address a login:
+
+```sh
+npm run admin:create -- you@example.com
+```
+
+It prompts for a password (10 characters minimum) and refuses any address not in
+`PLATFORM_ADMIN_EMAILS`, so the login and the grant can't drift apart. Sign in at
+`http://lvh.me:3000/login`; the console is at `http://lvh.me:3000/admin`.
+
+On a Mac without Postgres:
+
+```sh
+brew install postgresql@16 && brew services start postgresql@16
 ```
 
 Open **http://lvh.me:3000** — not `localhost`. `lvh.me` and every subdomain
