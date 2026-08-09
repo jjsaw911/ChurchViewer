@@ -53,9 +53,25 @@ shell access means whoever creates the account already holds the server.
   `www`, and `citychurch` resolve and are covered by the cert. Every new church
   currently needs a hand-made A record, a name added to both `server_name` lines
   in the nginx config, and a re-run of certbot with the extra `-d`.
-- **`GCS_BUCKET` and the Google OAuth pair are blank.** The app degrades
-  deliberately: the admin UI takes pasted media links only, and the Google
-  sign-in button stays hidden.
+- **The Google OAuth pair is blank.** The sign-in button stays hidden until it
+  isn't; everything else works without it.
+
+## Storage and scratch space
+
+Uploads go to `gs://churchviewer-media` — private, uniform access, public access
+prevention on, reached only through signed URLs. The VM's own service account is
+scoped read-only for storage, so the app authenticates as a dedicated service
+account whose key sits at `/srv/churchviewer/gcs-key.json` (mode 600, owned by
+the app user) and is pointed at by `GOOGLE_APPLICATION_CREDENTIALS`. The bucket
+allows CORS PUTs from any origin because every church is on its own subdomain
+and GCS doesn't match wildcard origins; the signed URL is the actual gate.
+
+The 100GB disk is mounted at `/mnt/churchviewer` (`nofail`, so a missing disk
+can't stop the VM booting) and `WORKER_SCRATCH_DIR=/mnt/churchviewer/scratch`
+sends video extraction there. That matters: the boot disk is 10GB and also holds
+Postgres, and a transcode that fills it takes the database down with it. The
+worker checks free space before it starts and refuses the job rather than
+risking that.
 
 ## How it was built
 

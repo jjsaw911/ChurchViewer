@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdtemp, rm, stat, statfs } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -33,7 +33,38 @@ import { playbackUrl, uploadFile } from "@/lib/storage";
 /** Enough for a service video; past this something has gone wrong upstream. */
 const MAX_SOURCE_BYTES = 4 * 1024 * 1024 * 1024;
 
+/**
+ * Disk to leave alone whatever happens.
+ *
+ * The database and the app share a filesystem with this work if nobody has
+ * given the worker a disk of its own, and a full filesystem doesn't fail one
+ * transcode — it takes Postgres down with it. Better to refuse the job.
+ */
+const RESERVE_BYTES = 512 * 1024 * 1024;
+
+/** Below this there's no point starting: no service video is smaller. */
+const MINIMUM_WORKABLE_BYTES = 64 * 1024 * 1024;
+
 const AUDIO_BITRATE = "96k";
+
+/**
+ * Where the video may be written, given what's free.
+ *
+ * Pure so the arithmetic that stands between a big upload and a full disk can
+ * be checked without filling one.
+ */
+export function spaceBudget(freeBytes: number): number {
+  return Math.max(0, Math.min(MAX_SOURCE_BYTES, freeBytes - RESERVE_BYTES));
+}
+
+/**
+ * The scratch directory. `WORKER_SCRATCH_DIR` points it at a disk with room for
+ * video on it; without one it falls back to the system temp directory, which on
+ * a small VM is the same filesystem as everything else.
+ */
+const scratchRoot = () => process.env.WORKER_SCRATCH_DIR || tmpdir();
+
+const gigabytes = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)}GB`;
 
 export type ExtractableJob = {
   id: string;
@@ -107,7 +138,7 @@ function run(command: string, args: string[]): Promise<void> {
 }
 
 /** Stream the source to disk — a service video does not belong in memory. */
-async function download(location: string, to: string): Promise<void> {
+async function download(location: string, to: string, budget: number): Promise<void> {
   const resolved = await playbackUrl(location);
   if (!resolved) throw new Error("Couldn't work out where that video lives.");
 
@@ -123,8 +154,10 @@ async function download(location: string, to: string): Promise<void> {
   }
 
   const declared = Number(response.headers.get("content-length") ?? 0);
-  if (declared > MAX_SOURCE_BYTES) {
-    throw new Error(`That video is ${(declared / 1024 ** 3).toFixed(1)}GB, which is too big.`);
+  if (declared > budget) {
+    throw new Error(
+      `That video is ${gigabytes(declared)} and there's only ${gigabytes(budget)} of room to work in.`,
+    );
   }
 
   let seen = 0;
@@ -132,7 +165,9 @@ async function download(location: string, to: string): Promise<void> {
     transform(chunk, controller) {
       seen += chunk.byteLength;
       // A server that didn't declare a length still can't fill the disk.
-      if (seen > MAX_SOURCE_BYTES) throw new Error("That video is too big to work with.");
+      if (seen > budget) {
+        throw new Error(`That video is bigger than the ${gigabytes(budget)} there's room for.`);
+      }
       controller.enqueue(chunk);
     },
   });
@@ -152,12 +187,24 @@ async function download(location: string, to: string): Promise<void> {
 export async function extractAudio(job: ExtractableJob): Promise<string> {
   if (!job.videoSrc) throw new Error("There's no video on this song to take the audio from.");
 
-  const workspace = await mkdtemp(join(tmpdir(), "churchviewer-"));
+  const workspace = await mkdtemp(join(scratchRoot(), "churchviewer-"));
   const source = join(workspace, "source");
   const output = join(workspace, "audio.mp3");
 
   try {
-    await download(job.videoSrc, source);
+    // How much room there actually is, checked here rather than assumed: the
+    // worker shares a filesystem with the database unless it's been given a
+    // disk, and filling that is a far worse outcome than a job that won't run.
+    const { bavail, bsize } = await statfs(workspace);
+    const budget = spaceBudget(bavail * bsize);
+
+    if (budget < MINIMUM_WORKABLE_BYTES) {
+      throw new Error(
+        `Not enough disk space where the worker runs — ${gigabytes(bavail * bsize)} free, and it keeps ${gigabytes(RESERVE_BYTES)} spare.`,
+      );
+    }
+
+    await download(job.videoSrc, source, budget);
     await run("ffmpeg", ffmpegArgs(source, output));
 
     const { size } = await stat(output);
