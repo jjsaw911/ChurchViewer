@@ -11,7 +11,9 @@ import {
   listMedia,
   mediaUsage,
   registerMedia,
+  songsForLocations,
   type MediaKind,
+  type MediaSong,
 } from "@/lib/media/service";
 import { deleteObject, playbackUrl } from "@/lib/storage";
 
@@ -32,11 +34,19 @@ export type MediaItem = {
   createdAt: string;
   /** Null when uploads aren't configured and the file is in a bucket. */
   url: string | null;
+  /** The song made from this recording, and the slides that came with it. */
+  song: MediaSong | null;
 };
 
 async function present(
+  churchId: string,
   rows: Awaited<ReturnType<typeof listMedia>>["rows"],
 ): Promise<MediaItem[]> {
+  const songs = await songsForLocations(
+    churchId,
+    rows.map((row) => row.location),
+  );
+
   return Promise.all(
     rows.map(async (row) => ({
       id: row.id,
@@ -49,6 +59,7 @@ async function present(
       notes: row.notes,
       createdAt: row.createdAt.toISOString(),
       url: await playbackUrl(row.location),
+      song: songs.get(row.location) ?? null,
     })),
   );
 }
@@ -71,7 +82,7 @@ export async function searchMediaAction(input: {
     limit: input.limit,
   });
 
-  return { items: await present(rows), hasMore };
+  return { items: await present(church.id, rows), hasMore };
 }
 
 /**
@@ -104,7 +115,7 @@ export async function registerMediaAction(input: {
   if (!saved) return { ok: false, error: "Couldn't add that to the library." };
 
   revalidatePath(`/s/${input.tenant}`, "layout");
-  const [item] = await present([saved]);
+  const [item] = await present(church.id, [saved]);
   return { ok: true, item };
 }
 

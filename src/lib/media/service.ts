@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   mediaAssets,
@@ -143,6 +143,74 @@ export async function listMedia(query: MediaQuery) {
     .offset(Math.max(0, query.offset ?? 0));
 
   return { rows: rows.slice(0, limit), hasMore: rows.length > limit };
+}
+
+/** A song that was made from one of these files, and how far along it is. */
+export type MediaSong = {
+  slug: string;
+  title: string;
+  status: string;
+  slideCount: number;
+  /** The opening line of each slide — enough to recognise, not to perform. */
+  openingLines: string[];
+};
+
+/**
+ * The songs behind a page of files.
+ *
+ * A recording in the library and the slides made from it are the same thing to
+ * the person looking for them: "the mp3" and "the words to the mp3". They're
+ * two tables here for good reasons, and neither of those reasons is the user's
+ * problem — so the library shows them together.
+ *
+ * Looked up in one query after the page of files rather than joined into it: a
+ * join would multiply rows if two songs ever shared a file, and the page size
+ * is what decides whether there's a next page.
+ */
+export async function songsForLocations(
+  churchId: string,
+  locations: string[],
+): Promise<Map<string, MediaSong>> {
+  if (locations.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      slug: songs.slug,
+      title: songs.title,
+      status: songs.status,
+      slides: songs.slides,
+      audioSrc: songs.audioSrc,
+      videoSrc: songs.videoSrc,
+    })
+    .from(songs)
+    .where(
+      and(
+        eq(songs.churchId, churchId),
+        or(
+          inArray(songs.audioSrc, locations),
+          inArray(songs.videoSrc, locations),
+        )!,
+      ),
+    );
+
+  const found = new Map<string, MediaSong>();
+  for (const row of rows) {
+    const song: MediaSong = {
+      slug: row.slug,
+      title: row.title,
+      status: row.status,
+      slideCount: row.slides.length,
+      openingLines: row.slides.slice(0, 8).map((slide) => slide.lines[0] ?? ""),
+    };
+
+    // A song can point at both its video and the audio pulled out of it, and
+    // both files should say so.
+    for (const location of [row.audioSrc, row.videoSrc]) {
+      if (location && locations.includes(location)) found.set(location, song);
+    }
+  }
+
+  return found;
 }
 
 export async function getMedia(churchId: string, id: string) {

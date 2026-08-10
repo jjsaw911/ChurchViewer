@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import ChurchNav from "@/components/ChurchNav";
 import { LogoMark } from "@/components/Logo";
 import { getSessionUser } from "@/lib/auth/session";
 import { resolveAccess } from "@/lib/admin/guard";
@@ -42,40 +43,17 @@ export default async function TenantLayout({ children, params }: LayoutProps<"/s
               <p className="text-sm text-stone-500">{church.tagline}</p>
             ) : null}
           </div>
-          <nav className="flex items-center gap-5 text-sm font-medium">
-            <Link href="/" className="hover:text-amber-700 dark:hover:text-amber-500">
-              Library
-            </Link>
-            <Link href="/series" className="hover:text-amber-700 dark:hover:text-amber-500">
-              Series
-            </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <ChurchNav canManage={Boolean(role)} />
             {isPlatformAdmin ? (
               <a
                 href={rootUrl("/admin")}
-                className="hover:text-amber-700 dark:hover:text-amber-500"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800"
               >
                 Platform
               </a>
             ) : null}
-            {/* Planning is the thing staff come here to do week by week, so it
-                sits in the church's own nav rather than one level in. */}
-            {role ? (
-              <Link
-                href="/admin/services"
-                className="hover:text-amber-700 dark:hover:text-amber-500"
-              >
-                Plans
-              </Link>
-            ) : null}
-            {role ? (
-              <Link
-                href="/admin"
-                className="rounded-lg bg-amber-700 px-3 py-1.5 text-white hover:bg-amber-800"
-              >
-                Manage
-              </Link>
-            ) : null}
-          </nav>
+          </div>
         </div>
       </header>
 
