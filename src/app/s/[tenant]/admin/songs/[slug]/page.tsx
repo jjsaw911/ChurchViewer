@@ -5,7 +5,11 @@ import SlideEditor from "@/components/songs/SlideEditor";
 import SongForm from "@/components/songs/SongForm";
 import { isOpenAiConfigured } from "@/lib/ai/openai";
 import { requireChurchAccess } from "@/lib/admin/guard";
-import { deleteSongAction, queueSongWorkAction } from "@/lib/songs/actions";
+import {
+  deleteSongAction,
+  deleteSongVideoAction,
+  queueSongWorkAction,
+} from "@/lib/songs/actions";
 import { getSong } from "@/lib/songs/service";
 import { env } from "@/lib/env";
 import { playbackUrl } from "@/lib/storage";
@@ -99,16 +103,37 @@ export default async function EditSongPage({
             }}
           />
 
-          <form action={deleteSongAction} className="mt-6 border-t border-stone-200 pt-5 dark:border-stone-800">
-            <input type="hidden" name="tenant" value={tenant} />
-            <input type="hidden" name="slug" value={song.slug} />
-            <button
-              type="submit"
-              className="text-sm font-medium text-red-700 hover:underline dark:text-red-400"
-            >
-              Delete this song
-            </button>
-          </form>
+          <div className="mt-6 space-y-4 border-t border-stone-200 pt-5 dark:border-stone-800">
+            {/* The big file has done its job once there are slides, and it's a
+                hundred times the size of the audio it produced. */}
+            {song.videoSrc && song.audioSrc ? (
+              <form action={deleteSongVideoAction} className="space-y-1">
+                <input type="hidden" name="tenant" value={tenant} />
+                <input type="hidden" name="slug" value={song.slug} />
+                <button
+                  type="submit"
+                  className="text-sm font-medium text-amber-700 hover:underline dark:text-amber-500"
+                >
+                  Delete the video, keep the audio and slides
+                </button>
+                <p className="text-xs text-stone-500">
+                  Frees most of what this song is costing you to store. The audio and the slides
+                  stay; only re-transcribing from the original would need it uploading again.
+                </p>
+              </form>
+            ) : null}
+
+            <form action={deleteSongAction}>
+              <input type="hidden" name="tenant" value={tenant} />
+              <input type="hidden" name="slug" value={song.slug} />
+              <button
+                type="submit"
+                className="text-sm font-medium text-red-700 hover:underline dark:text-red-400"
+              >
+                Delete this song
+              </button>
+            </form>
+          </div>
         </div>
       </details>
     </div>

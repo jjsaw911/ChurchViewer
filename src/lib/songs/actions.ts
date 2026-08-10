@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { songs } from "@/db/schema";
+import { mediaAssets, songs } from "@/db/schema";
 import { requireChurchAccess } from "@/lib/admin/guard";
 import { parseClock } from "@/lib/format";
 import { displayFilename, kindFor, titleFromFilename } from "@/lib/media/service";
@@ -198,6 +198,44 @@ export async function createSongFromFileAction(input: {
 
   revalidatePath(`/s/${input.tenant}`, "layout");
   return { ok: true, slug: song.slug, title: song.title };
+}
+
+/**
+ * Throw away the video, keep the audio and the slides.
+ *
+ * A service video is a hundred times the size of the audio pulled out of it and
+ * is usually never watched again through this app. Once there are slides, the
+ * big file has done its job.
+ *
+ * Deliberately a decision somebody makes rather than something the worker does
+ * on its own: the video is the only copy that can be extracted again — at other
+ * settings, or after a better take — and a background job that quietly deletes
+ * originals is not one anybody can undo.
+ */
+export async function deleteSongVideoAction(formData: FormData): Promise<void> {
+  const tenant = value(formData, "tenant");
+  const { church } = await requireChurchAccess(tenant);
+
+  const slug = value(formData, "slug");
+  const [song] = await db
+    .select({ id: songs.id, videoSrc: songs.videoSrc, audioSrc: songs.audioSrc })
+    .from(songs)
+    .where(and(eq(songs.churchId, church.id), eq(songs.slug, slug)))
+    .limit(1);
+
+  // Without audio there'd be nothing left to transcribe from, which is a
+  // different and much worse operation than the one being asked for.
+  if (!song?.videoSrc || !song.audioSrc) redirect(`/admin/songs/${slug}`);
+
+  await db.update(songs).set({ videoSrc: null }).where(eq(songs.id, song.id));
+  await db
+    .delete(mediaAssets)
+    .where(and(eq(mediaAssets.churchId, church.id), eq(mediaAssets.location, song.videoSrc)));
+
+  if (isGcsLocation(song.videoSrc)) await deleteObject(song.videoSrc);
+
+  revalidatePath(`/s/${tenant}`, "layout");
+  redirect(`/admin/songs/${slug}`);
 }
 
 export async function deleteSongAction(formData: FormData): Promise<void> {

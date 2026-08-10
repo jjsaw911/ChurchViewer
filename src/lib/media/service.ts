@@ -233,7 +233,8 @@ export async function mediaUsage(churchId: string, location: string): Promise<nu
   const result = await db.execute(sql`
     select (
         (select count(*) from ${songs}
-          where ${songs.churchId} = ${churchId} and ${songs.audioSrc} = ${location})
+          where ${songs.churchId} = ${churchId}
+            and ${location} in (${songs.audioSrc}, ${songs.videoSrc}))
       + (select count(*) from ${sermons}
           where ${sermons.churchId} = ${churchId}
             and ${location} in (${sermons.mediaSrc}, ${sermons.posterSrc}, ${sermons.captionsSrc}))
@@ -241,7 +242,10 @@ export async function mediaUsage(churchId: string, location: string): Promise<nu
           where ${series.churchId} = ${churchId} and ${series.artworkSrc} = ${location})
       + (select count(*) from ${serviceItems}
           join ${services} on ${services.id} = ${serviceItems.serviceId}
-          where ${services.churchId} = ${churchId} and ${serviceItems.mediaUrl} = ${location})
+          where ${services.churchId} = ${churchId}
+            and ${location} in (${serviceItems.mediaUrl}, ${serviceItems.backgroundSrc}))
+      + (select count(*) from ${services}
+          where ${services.churchId} = ${churchId} and ${services.backgroundSrc} = ${location})
     )::int as total
   `);
 
@@ -251,3 +255,31 @@ export async function mediaUsage(churchId: string, location: string): Promise<nu
 
 /** Whether this is ours to delete from the bucket, or somebody else's link. */
 export const isHeldFile = (location: string) => isGcsLocation(location);
+
+/**
+ * What the church is storing, and how much of it is video.
+ *
+ * Shown rather than left to a billing page: a service video is a hundred times
+ * the size of the audio pulled out of it, and nobody discovers that on their own
+ * until the bill does it for them.
+ */
+export async function libraryTotals(churchId: string): Promise<{
+  files: number;
+  bytes: number;
+  videoBytes: number;
+}> {
+  const [row] = await db
+    .select({
+      files: sql<number>`count(*)::int`,
+      bytes: sql<number>`coalesce(sum(${mediaAssets.bytes}), 0)::bigint`,
+      videoBytes: sql<number>`coalesce(sum(${mediaAssets.bytes}) filter (where ${mediaAssets.kind} = 'video'), 0)::bigint`,
+    })
+    .from(mediaAssets)
+    .where(eq(mediaAssets.churchId, churchId));
+
+  return {
+    files: Number(row?.files ?? 0),
+    bytes: Number(row?.bytes ?? 0),
+    videoBytes: Number(row?.videoBytes ?? 0),
+  };
+}
