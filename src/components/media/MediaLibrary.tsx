@@ -1,15 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import FileDrop from "@/components/media/FileDrop";
 import { MediaThumb, formatBytes } from "@/components/media/MediaPicker";
 import {
   deleteMediaAction,
-  registerMediaAction,
   renameMediaAction,
   searchMediaAction,
   type MediaItem,
 } from "@/lib/media/actions";
 import type { MediaKind } from "@/lib/media/service";
+import { uploadToLibrary } from "@/lib/media/upload";
 
 const PAGE = 24;
 
@@ -69,8 +70,11 @@ export default function MediaLibrary({
   const [busy, setBusy] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState<{
+    done: number;
+    total: number;
+    percent: number;
+  } | null>(null);
   const request = useRef(0);
 
   // A string rather than the array, so switching back to a filter you were on
@@ -107,49 +111,20 @@ export default function MediaLibrary({
   /** Straight to the bucket, one at a time, then into the library. */
   async function uploadAll(files: File[]) {
     setStatus(null);
-    setUploading({ done: 0, total: files.length });
+    setUploading({ done: 0, total: files.length, percent: 0 });
 
     for (const [index, file] of files.entries()) {
       try {
-        const response = await fetch("/api/uploads", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            tenant,
-            filename: file.name,
-            contentType: file.type || "application/octet-stream",
-          }),
-        });
-        const data = (await response.json()) as {
-          uploadUrl?: string;
-          location?: string;
-          error?: string;
-        };
-        if (!response.ok || !data.uploadUrl || !data.location) {
-          throw new Error(data.error ?? "Couldn't start the upload.");
-        }
-
-        const put = await fetch(data.uploadUrl, {
-          method: "PUT",
-          headers: { "content-type": file.type || "application/octet-stream" },
-          body: file,
-        });
-        if (!put.ok) throw new Error(`Upload failed (${put.status})`);
-
-        const registered = await registerMediaAction({
-          tenant,
-          location: data.location,
-          filename: file.name,
-          contentType: file.type || "application/octet-stream",
-          bytes: file.size,
-        });
-        if (registered.ok) setItems((current) => [registered.item, ...current]);
+        const item = await uploadToLibrary(tenant, file, (percent) =>
+          setUploading({ done: index, total: files.length, percent }),
+        );
+        setItems((current) => [item, ...current]);
       } catch (error) {
         setStatus(
           `${file.name}: ${error instanceof Error ? error.message : "upload failed"}`,
         );
       }
-      setUploading({ done: index + 1, total: files.length });
+      setUploading({ done: index + 1, total: files.length, percent: 100 });
     }
 
     setUploading(null);
@@ -189,44 +164,29 @@ export default function MediaLibrary({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-3">
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by name"
-          className={`${field} min-w-56 flex-1`}
+      {uploadsEnabled ? (
+        <FileDrop
+          onFiles={(files) => void uploadAll(files)}
+          busy={uploading !== null}
+          label={
+            uploading
+              ? `Uploading ${Math.min(uploading.done + 1, uploading.total)} of ${uploading.total} — ${uploading.percent}%`
+              : "Drop files here, or click to choose them"
+          }
+          hint="Audio, video, pictures, captions. As many at once as you like."
         />
+      ) : (
+        <p className="rounded-xl border border-dashed border-stone-300 p-6 text-center text-sm text-stone-500 dark:border-stone-700">
+          Uploads aren&apos;t configured on this server — set GCS_BUCKET to store files here.
+        </p>
+      )}
 
-        {uploadsEnabled ? (
-          <>
-            <input
-              ref={fileInput}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={(event) => {
-                const files = Array.from(event.target.files ?? []);
-                if (files.length) void uploadAll(files);
-                event.target.value = "";
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => fileInput.current?.click()}
-              disabled={uploading !== null}
-              className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-60"
-            >
-              {uploading
-                ? `Uploading ${uploading.done + 1} of ${uploading.total}…`
-                : "Upload files"}
-            </button>
-          </>
-        ) : (
-          <p className="text-sm text-stone-500">
-            Uploads aren&apos;t configured — set GCS_BUCKET to store files here.
-          </p>
-        )}
-      </div>
+      <input
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Search by name"
+        className={`${field} w-full`}
+      />
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((option, index) => (

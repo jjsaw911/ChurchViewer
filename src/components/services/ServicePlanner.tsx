@@ -119,6 +119,8 @@ type Resize = {
   /** The minutes being dragged onto an item right now, or null when idle. */
   pending: Record<string, number>;
   begin: (itemId: string, fromMinutes: number, fromY: number) => void;
+  /** One minute at a time, for the buttons and for anyone on a keyboard. */
+  step: (itemId: string, fromMinutes: number, delta: number) => void;
 };
 
 type Shared = {
@@ -525,15 +527,43 @@ function ActivityBlock({
         {item.owner ? (
           <span className="hidden text-xs text-stone-500 sm:inline">{item.owner}</span>
         ) : null}
-        <span
-          className={`text-xs tabular-nums ${
-            dragging === null && shared.resize.pending[item.id] !== undefined
-              ? "font-semibold text-amber-700 dark:text-amber-500"
-              : "text-stone-500"
-          }`}
-        >
-          {holdsOthers ? runsFor : minutes}m
-        </span>
+        {/* How long it runs, and the two buttons that change it. A grip on the
+            bottom edge is quicker once you know it's there, but nobody finds a
+            grip they haven't been told about. */}
+        {holdsOthers ? (
+          <span className="text-xs text-stone-500" title="As long as what's inside it">
+            {runsFor}m
+          </span>
+        ) : (
+          <span className="flex items-center rounded-lg border border-stone-200 dark:border-stone-700">
+            <button
+              type="button"
+              onClick={() => shared.resize.step(item.id, minutes, -1)}
+              disabled={minutes <= 0}
+              aria-label={`Make ${item.title} a minute shorter`}
+              className="px-1.5 py-0.5 text-xs text-stone-500 hover:bg-stone-100 disabled:opacity-30 dark:hover:bg-stone-800"
+            >
+              −
+            </button>
+            <span
+              className={`w-9 text-center text-xs tabular-nums ${
+                shared.resize.pending[item.id] !== undefined
+                  ? "font-semibold text-amber-700 dark:text-amber-500"
+                  : "text-stone-500"
+              }`}
+            >
+              {minutes}m
+            </span>
+            <button
+              type="button"
+              onClick={() => shared.resize.step(item.id, minutes, 1)}
+              aria-label={`Make ${item.title} a minute longer`}
+              className="px-1.5 py-0.5 text-xs text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800"
+            >
+              +
+            </button>
+          </span>
+        )}
 
         {/* Anything with a player behind it opens one in place, so checking the
             clip is the right clip doesn't mean leaving the plan. */}
@@ -761,9 +791,11 @@ function ActivityBlock({
             shared.resize.begin(item.id, minutes, event.clientY);
           }}
           title="Drag to change how long it runs"
-          className="group/resize -mt-1 flex h-3 cursor-ns-resize items-center justify-center"
+          className="group/resize mt-auto flex h-4 cursor-ns-resize items-center justify-center rounded-b-xl border-t border-stone-100 hover:bg-amber-50 dark:border-stone-800 dark:hover:bg-amber-950/30"
         >
-          <span className="h-0.5 w-10 rounded-full bg-stone-200 transition group-hover/resize:bg-amber-500 dark:bg-stone-700" />
+          <span className="text-[0.6rem] tracking-widest text-stone-400 group-hover/resize:text-amber-700 dark:group-hover/resize:text-amber-500">
+            ⇕ drag to change the length
+          </span>
         </div>
       ) : null}
 
@@ -889,6 +921,20 @@ export default function ServicePlanner({
     window.addEventListener("pointerup", onUp);
   };
 
+  /** The same change, one minute at a time, from a button. */
+  const stepResize = (itemId: string, fromMinutes: number, delta: number) => {
+    const minutes = Math.max(0, Math.min(240, fromMinutes + delta));
+    if (minutes === fromMinutes) return;
+
+    setPending((current) => ({ ...current, [itemId]: minutes }));
+    startTransition(async () => {
+      const result = await setItemDurationAction({ tenant, serviceId, itemId, minutes });
+      if (!result.ok) setDropError(result.error ?? "That length didn't save.");
+      router.refresh();
+      setPending((current) => forget(current, itemId));
+    });
+  };
+
   const drag: Drag = {
     id: draggingId,
     begin: (id) => {
@@ -916,7 +962,7 @@ export default function ServicePlanner({
     slideSources,
     uploadsEnabled,
     drag,
-    resize: { pending, begin: beginResize },
+    resize: { pending, begin: beginResize, step: stepResize },
   };
 
   const { rows, count } = useMemo(() => {

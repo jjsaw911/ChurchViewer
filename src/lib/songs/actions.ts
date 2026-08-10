@@ -7,7 +7,9 @@ import { db } from "@/db/client";
 import { songs } from "@/db/schema";
 import { requireChurchAccess } from "@/lib/admin/guard";
 import { parseClock } from "@/lib/format";
+import { displayFilename, kindFor, titleFromFilename } from "@/lib/media/service";
 import { enqueueSongWork } from "@/lib/songs/queue";
+import { createSong } from "@/lib/songs/service";
 import { retimeSlides } from "@/lib/songs/slides";
 import { deleteObject, isGcsLocation } from "@/lib/storage";
 import { slugify } from "@/lib/tenant";
@@ -160,6 +162,42 @@ export async function queueSongWorkAction(formData: FormData): Promise<void> {
   await enqueueSongWork({ churchId: church.id, songId: song.id, tidy: true });
 
   revalidatePath(`/s/${tenant}`, "layout");
+}
+
+/**
+ * Turn a file that's just been uploaded into a song, and start work on it.
+ *
+ * The shortest path from "I have the recording" to "there are slides": no form,
+ * no fields, just the file. A video goes in as a video and the worker takes the
+ * audio off it; audio is used as it is. The title comes from the filename and
+ * can be fixed afterwards — a wrong title is visible and editable, where a
+ * blocking form in the way of the upload is just friction.
+ */
+export async function createSongFromFileAction(input: {
+  tenant: string;
+  location: string;
+  filename: string;
+  contentType: string;
+}): Promise<{ ok: true; slug: string; title: string } | { ok: false; error: string }> {
+  const { church } = await requireChurchAccess(input.tenant);
+
+  const kind = kindFor(input.contentType, input.filename);
+  if (kind !== "audio" && kind !== "video") {
+    return { ok: false, error: `${input.filename} isn't audio or video.` };
+  }
+
+  const title = titleFromFilename(displayFilename(input.filename));
+  const song = await createSong({
+    churchId: church.id,
+    title,
+    audioSrc: kind === "audio" ? input.location : null,
+    videoSrc: kind === "video" ? input.location : null,
+  });
+
+  await enqueueSongWork({ churchId: church.id, songId: song.id, tidy: true });
+
+  revalidatePath(`/s/${input.tenant}`, "layout");
+  return { ok: true, slug: song.slug, title: song.title };
 }
 
 export async function deleteSongAction(formData: FormData): Promise<void> {

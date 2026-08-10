@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
+import FileDrop from "@/components/media/FileDrop";
 import MediaPicker from "@/components/media/MediaPicker";
-import { registerMediaAction } from "@/lib/media/actions";
 import type { MediaKind } from "@/lib/media/service";
+import { uploadToLibrary } from "@/lib/media/upload";
 
 const field =
   "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900";
@@ -47,7 +48,6 @@ export default function MediaField({
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
 
   const isUpload = location.startsWith("gcs:");
 
@@ -55,53 +55,9 @@ export default function MediaField({
     setError(null);
     setProgress(0);
     try {
-      const response = await fetch("/api/uploads", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          tenant,
-          filename: file.name,
-          contentType: file.type || "application/octet-stream",
-        }),
-      });
-      const data = (await response.json()) as {
-        uploadUrl?: string;
-        location?: string;
-        error?: string;
-      };
-      if (!response.ok || !data.uploadUrl || !data.location) {
-        throw new Error(data.error ?? "Couldn't start the upload.");
-      }
-
-      // XHR rather than fetch — it's still the only way to get progress on a PUT.
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", data.uploadUrl!);
-        xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) setProgress(Math.round((event.loaded / event.total) * 100));
-        };
-        xhr.onload = () =>
-          xhr.status >= 200 && xhr.status < 300
-            ? resolve()
-            : reject(new Error(`Upload failed (${xhr.status})`));
-        xhr.onerror = () => reject(new Error("Upload failed."));
-        xhr.send(file);
-      });
-
-      setLocation(data.location);
-      setChosen(file.name);
-
-      // The bytes are safe either way; failing to list them is worth a line of
-      // explanation, not throwing away a finished upload.
-      const registered = await registerMediaAction({
-        tenant,
-        location: data.location,
-        filename: file.name,
-        contentType: file.type || "application/octet-stream",
-        bytes: file.size,
-      });
-      if (!registered.ok) setError("Uploaded, but it didn't reach the media library.");
+      const item = await uploadToLibrary(tenant, file, setProgress);
+      setLocation(item.location);
+      setChosen(item.title);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Upload failed.");
     } finally {
@@ -145,39 +101,30 @@ export default function MediaField({
       )}
 
       {!isUpload ? (
-        <div className="flex flex-wrap items-center gap-3 pt-1">
+        <div className="space-y-2 pt-1">
           {uploadsEnabled ? (
-            <>
-              <input
-                ref={fileInput}
-                type="file"
-                accept={accept}
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void upload(file);
-                  event.target.value = "";
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => fileInput.current?.click()}
-                disabled={progress !== null}
-                className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium hover:border-amber-400 disabled:opacity-60 dark:border-stone-700"
-              >
-                {progress === null ? "Upload a file" : `Uploading… ${progress}%`}
-              </button>
-            </>
+            <FileDrop
+              compact
+              multiple={false}
+              accept={accept}
+              busy={progress !== null}
+              onFiles={(files) => void upload(files[0])}
+              label={
+                progress === null ? "Drop a file here, or click to choose one" : `Uploading… ${progress}%`
+              }
+            />
           ) : null}
 
-          <button
-            type="button"
-            onClick={() => setPicking(true)}
-            className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
-          >
-            Choose from the library
-          </button>
-          <span className="text-xs text-stone-500">or paste a link above</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setPicking(true)}
+              className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
+            >
+              Choose from the library
+            </button>
+            <span className="text-xs text-stone-500">or paste a link above</span>
+          </div>
         </div>
       ) : null}
 

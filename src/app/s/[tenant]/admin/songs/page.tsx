@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SongDrop from "@/components/songs/SongDrop";
 import { requireChurchAccess } from "@/lib/admin/guard";
 import { listSongs } from "@/lib/songs/service";
 import { formatDuration } from "@/lib/format";
+import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Songs" };
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
+  queued: "Waiting for the worker…",
+  extracting: "Pulling the audio out…",
   transcribing: "Transcribing…",
   ready: "Ready",
   failed: "Needs attention",
@@ -32,11 +36,13 @@ export default async function SongsPage({ params }: PageProps<"/s/[tenant]/admin
         </div>
         <Link
           href="/admin/songs/new"
-          className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800"
+          className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
         >
-          Add a song
+          Add a song by hand
         </Link>
       </header>
+
+      <SongDrop tenant={tenant} uploadsEnabled={env.storage.isConfigured} />
 
       {songs.length === 0 ? (
         <p className="rounded-xl border border-dashed border-stone-300 p-12 text-center text-stone-500 dark:border-stone-700">
