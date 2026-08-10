@@ -48,8 +48,8 @@ export default function SupportPage() {
       <header className="space-y-3">
         <h1 className="text-4xl font-semibold tracking-tight">Keeping the lights on</h1>
         <p className="text-lg text-stone-600 dark:text-stone-400">
-          ChurchViewer is free and open source. There is no paid tier, no feature held back, and
-          no plan to add either.
+          ChurchViewer is free to use. There is no paid tier, no feature held back, and no plan to
+          add either. It&apos;s run by one person who pays for the server.
         </p>
       </header>
 
@@ -132,10 +132,7 @@ export default function SupportPage() {
         <ul className="list-disc space-y-2 pl-5 text-stone-600 dark:text-stone-400">
           <li>Tell another church it exists.</li>
           <li>Say what broke, or what was confusing. That&apos;s worth more than five dollars.</li>
-          <li>
-            It&apos;s open source — read it, change it, run your own copy on your own server and
-            owe nobody anything.
-          </li>
+          <li>Send back a fix to the wording on a screen. Nobody proofreads their own slides.</li>
         </ul>
         <p className="pt-2 text-sm text-stone-500">
           <Link href="/" className="font-medium text-amber-700 hover:underline dark:text-amber-500">

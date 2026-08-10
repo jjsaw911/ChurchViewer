@@ -68,7 +68,7 @@ export default async function TenantLayout({ children, params }: LayoutProps<"/s
           <span className="flex items-center gap-2">
             <LogoMark className="h-5 w-5" />
             <a href={rootUrl("/support")} className="hover:underline">
-              Powered by ChurchViewer — free and open source
+              Powered by ChurchViewer
             </a>
           </span>
         </div>
