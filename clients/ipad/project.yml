@@ -1,0 +1,36 @@
+# Generated into an .xcodeproj by XcodeGen, so the project file itself never
+# goes in the repository: an .xcodeproj is a large plist that only one person
+# can merge, and this is eleven readable lines instead.
+#
+#   brew install xcodegen && ./build.sh
+name: ChurchViewerRemote
+options:
+  bundleIdPrefix: com.churchviewer
+  deploymentTarget:
+    iOS: "17.0"
+
+targets:
+  ChurchViewerRemote:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: ChurchViewer
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # It talks to one https server; no transport exceptions wanted.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.churchviewer.remote
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        # Nothing is signed for the simulator; a real iPad needs a team here.
+        CODE_SIGNING_ALLOWED: NO
