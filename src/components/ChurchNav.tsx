@@ -30,6 +30,7 @@ const STAFF_LINKS: Item[] = [
   { href: "/admin/media", label: "Media" },
   { href: "/admin", label: "Messages" },
   { href: "/admin/series", label: "Series" },
+  { href: "/admin/people", label: "People" },
 ];
 
 /** Whether a link is the page you're on, or the section you're inside. */

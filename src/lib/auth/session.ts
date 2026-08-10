@@ -17,6 +17,8 @@ function cookieDomain(): string | undefined {
 }
 
 export type SessionUser = {
+  /** True while somebody else's password is still on the account. */
+  mustChangePassword?: boolean;
   id: string;
   email: string;
   name: string;
@@ -89,7 +91,12 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!token) return null;
 
   const rows = await db
-    .select({ id: users.id, email: users.email, name: users.name })
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      mustChangePassword: users.mustChangePassword,
+    })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
     .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, new Date())))

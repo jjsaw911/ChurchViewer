@@ -34,6 +34,12 @@ export const users = pgTable(
     passwordHash: text("password_hash"),
     googleSub: text("google_sub"),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    /**
+     * Set when somebody else chose this account's password — a church owner
+     * setting up a volunteer with a temporary one. Until it is cleared, the
+     * only page the account can reach is the one that changes it.
+     */
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

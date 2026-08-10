@@ -1,18 +1,20 @@
 "use server";
 
+import { eq } from "drizzle-orm";
+
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { churches, memberships } from "@/db/schema";
+import { churches, memberships, users } from "@/db/schema";
 import {
   createPasswordUser,
   findUserByEmail,
   isPlausibleEmail,
   normalizeEmail,
 } from "@/lib/auth/accounts";
-import { checkPasswordStrength, verifyPassword } from "@/lib/auth/password";
+import { checkPasswordStrength, hashPassword, verifyPassword } from "@/lib/auth/password";
 import { completeReset, resolveResetToken } from "@/lib/auth/reset";
 import { createSession, destroySession, getSessionUser } from "@/lib/auth/session";
-import { tenantUrl } from "@/lib/env";
+import { rootUrl, tenantUrl } from "@/lib/env";
 import { slugify, validateSlug } from "@/lib/tenant";
 import { isSlugTaken } from "@/lib/churches";
 
@@ -152,6 +154,51 @@ export async function resetPasswordAction(
   // that they are the person — signing in is the next step, with the password
   // they just chose.
   redirect("/login");
+}
+
+/**
+ * Choose your own password while signed in.
+ *
+ * The current one is required unless somebody else set it. A person handed a
+ * temporary password across a table may not remember it two minutes later, and
+ * asking them to type it back proves nothing the session cookie hasn't already
+ * proved — where refusing them would leave them locked out of an account that
+ * was just made for them.
+ */
+export async function changeOwnPasswordAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await getSessionUser();
+  if (!user) redirect(rootUrl("/login"));
+
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (password !== confirm) return { error: "Those two don't match.", field: "confirm" };
+
+  const weak = checkPasswordStrength(password);
+  if (weak) return { error: weak, field: "password" };
+
+  const [row] = await db
+    .select({ passwordHash: users.passwordHash, mustChangePassword: users.mustChangePassword })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+
+  if (!row?.mustChangePassword) {
+    const current = String(formData.get("current") ?? "");
+    if (!row?.passwordHash || !(await verifyPassword(current, row.passwordHash))) {
+      return { error: "That isn't your current password.", field: "current" };
+    }
+  }
+
+  await db
+    .update(users)
+    .set({ passwordHash: await hashPassword(password), mustChangePassword: false })
+    .where(eq(users.id, user.id));
+
+  redirect(safeNext(value(formData, "next"), "/register"));
 }
 
 export async function signOutAction(): Promise<void> {

@@ -48,6 +48,11 @@ export async function requireChurchAccess(tenant: string): Promise<Access> {
   const user = await getSessionUser();
   if (!user) redirect(rootUrl("/login"));
 
+  // Somebody else's password is still on this account. Nothing else opens
+  // until they've chosen their own — otherwise "temporary" is whatever the
+  // person who set it decides it is.
+  if (user.mustChangePassword) redirect(rootUrl("/password"));
+
   const access = await resolveAccess(user, church.id);
   // Signed in, but not for this church — send them to their own list.
   if (!access) redirect(rootUrl("/register"));
