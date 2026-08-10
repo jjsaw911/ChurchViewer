@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { serviceItems, services } from "@/db/schema";
@@ -52,9 +51,6 @@ export default async function PlansPage({ params }: PageProps<"/s/[tenant]/admin
   return (
     <div className="space-y-10">
       <header className="space-y-1">
-        <Link href="/admin" className="text-sm text-stone-500 hover:underline">
-          &larr; Manage
-        </Link>
         <h1 className="text-3xl font-semibold">Plans</h1>
         <p className="text-sm text-stone-500">
           Plan a service against the clock, then run it on Sunday.

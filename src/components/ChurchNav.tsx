@@ -53,23 +53,25 @@ export default function ChurchNav({ canManage }: { canManage: boolean }) {
       key={item.href}
       href={item.href}
       aria-current={current ? "page" : undefined}
-      className={
+      className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium ${
         current
-          ? "rounded-lg bg-amber-700 px-3 py-1.5 text-sm font-medium text-white"
-          : "rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-stone-100 dark:hover:bg-stone-800"
-      }
+          ? "bg-amber-700 text-white"
+          : "hover:bg-stone-100 dark:hover:bg-stone-800"
+      }`}
     >
       {item.label}
     </Link>
   );
 
   return (
-    <nav className="flex flex-wrap items-center gap-1">
+    // Scrolls sideways rather than wrapping on a narrow screen: an iPad in
+    // portrait shouldn't push the page content down two rows to make room.
+    <nav className="-mx-1 flex max-w-full items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {PUBLIC_LINKS.map((item) => link(item, isCurrent(pathname, item.href)))}
 
       {canManage ? (
         <>
-          <span className="mx-2 h-5 w-px bg-stone-200 dark:bg-stone-700" />
+          <span className="mx-2 h-5 w-px shrink-0 bg-stone-200 dark:bg-stone-700" />
           {STAFF_LINKS.map((item) => link(item, isCurrent(pathname, item.href)))}
         </>
       ) : null}

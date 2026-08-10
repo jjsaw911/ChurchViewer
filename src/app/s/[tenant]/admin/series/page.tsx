@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import SeriesForm from "@/components/admin/SeriesForm";
 import { deleteSeriesAction } from "@/lib/admin/actions";
 import { requireChurchAccess } from "@/lib/admin/guard";
@@ -19,9 +18,6 @@ export default async function AdminSeriesPage({
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <div className="space-y-2">
-        <Link href="/admin" className="text-sm text-stone-500 hover:underline">
-          &larr; Manage
-        </Link>
         <h1 className="text-3xl font-semibold">Series</h1>
         <p className="text-sm text-stone-500">
           Group messages that belong together. Deleting a series keeps its messages.

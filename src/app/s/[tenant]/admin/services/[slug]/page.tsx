@@ -49,7 +49,7 @@ export default async function ServicePlanPage({
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-1">
           <Link href="/admin/services" className="text-sm text-stone-500 hover:underline">
-            &larr; Services
+            &larr; Plans
           </Link>
           <h1 className="text-3xl font-semibold">{service.title}</h1>
           <p className="text-sm text-stone-500">

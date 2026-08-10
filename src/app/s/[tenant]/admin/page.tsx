@@ -17,43 +17,20 @@ export default async function AdminPage({ params }: PageProps<"/s/[tenant]/admin
     <div className="space-y-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-3xl font-semibold">Manage {church.name}</h1>
+          <h1 className="text-3xl font-semibold">Messages</h1>
           <p className="text-sm text-stone-500">
-            {church.slug}.{env.rootDomain} &middot; signed in as {user.email}
+            {church.name} &middot; {church.slug}.{env.rootDomain} &middot; signed in as{" "}
+            {user.email}
           </p>
         </div>
-        <div className="flex gap-3">
-          <Link
-            href="/admin/services"
-            className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
-          >
-            Plans
-          </Link>
-          <Link
-            href="/admin/songs"
-            className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
-          >
-            Songs
-          </Link>
-          <Link
-            href="/admin/series"
-            className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
-          >
-            Series
-          </Link>
-          <Link
-            href="/admin/media"
-            className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
-          >
-            Media
-          </Link>
-          <Link
-            href="/admin/sermons/new"
-            className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800"
-          >
-            Add a message
-          </Link>
-        </div>
+        {/* Everything else this page used to link to is in the nav above, on
+            every page — including this one. */}
+        <Link
+          href="/admin/sermons/new"
+          className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800"
+        >
+          Add a message
+        </Link>
       </header>
 
       {sermons.length === 0 ? (

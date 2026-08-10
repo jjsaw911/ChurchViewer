@@ -26,9 +26,6 @@ export default async function SongsPage({ params }: PageProps<"/s/[tenant]/admin
     <div className="space-y-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-1">
-          <Link href="/admin" className="text-sm text-stone-500 hover:underline">
-            &larr; Manage
-          </Link>
           <h1 className="text-3xl font-semibold">Songs</h1>
           <p className="text-sm text-stone-500">
             Worship slides, timed to the recording so they change themselves.

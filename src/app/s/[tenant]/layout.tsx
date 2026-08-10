@@ -33,8 +33,11 @@ export default async function TenantLayout({ children, params }: LayoutProps<"/s
           </a>
         </div>
       ) : null}
-      <header className="border-b border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-900">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
+      {/* Sticky, because the pages under it are long. A plan runs past the
+          bottom of the screen and a song editor further, and a menu you have to
+          scroll back up to find is a menu that isn't there. */}
+      <header className="sticky top-0 z-40 border-b border-stone-200 bg-white/95 backdrop-blur dark:border-stone-800 dark:bg-stone-900/95">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-3">
           <div>
             <Link href="/" className="text-lg font-semibold tracking-tight">
               {church.name}

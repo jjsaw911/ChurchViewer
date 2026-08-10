@@ -31,7 +31,7 @@ export default async function EditSermonPage({
     <div className="mx-auto max-w-3xl space-y-8">
       <div className="space-y-2">
         <Link href="/admin" className="text-sm text-stone-500 hover:underline">
-          &larr; Manage
+          &larr; Messages
         </Link>
         <h1 className="text-3xl font-semibold">Edit message</h1>
       </div>

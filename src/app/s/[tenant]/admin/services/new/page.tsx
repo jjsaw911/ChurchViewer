@@ -16,7 +16,7 @@ export default async function NewServicePage({
     <div className="mx-auto max-w-2xl space-y-8">
       <div className="space-y-2">
         <Link href="/admin/services" className="text-sm text-stone-500 hover:underline">
-          &larr; Services
+          &larr; Plans
         </Link>
         <h1 className="text-3xl font-semibold">Plan a service</h1>
         <p className="text-sm text-stone-500">
