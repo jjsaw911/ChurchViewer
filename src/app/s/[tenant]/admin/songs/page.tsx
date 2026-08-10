@@ -57,7 +57,13 @@ export default async function SongsPage({ params }: PageProps<"/s/[tenant]/admin
                   {song.title}
                 </Link>
                 <p className="text-sm text-stone-500">
-                  {[song.author, formatDuration(song.durationSeconds)].filter(Boolean).join(" · ")}
+                  {[
+                    song.musicalKey ? `Key of ${song.musicalKey}` : "",
+                    song.author,
+                    formatDuration(song.durationSeconds),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                   {song.slides.length ? ` · ${song.slides.length} slides` : " · no slides yet"}
                 </p>
               </div>

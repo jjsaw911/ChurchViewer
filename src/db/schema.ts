@@ -224,6 +224,12 @@ export const songs = pgTable(
     videoSrc: text("video_src"),
     durationSeconds: integer("duration_seconds").notNull().default(0),
     status: songStatusEnum("status").notNull().default("draft"),
+    /**
+     * The musical key the recording is in, worked out from the audio — "G",
+     * "Em". Null until a worker has listened to it, and left null when the
+     * answer was too close to call.
+     */
+    musicalKey: text("musical_key"),
     /** Set when a worker claims the job; also how a dead worker's job is reclaimed. */
     claimedAt: timestamp("claimed_at", { withTimezone: true }),
     transcribeAttempts: integer("transcribe_attempts").notNull().default(0),

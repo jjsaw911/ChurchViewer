@@ -36,6 +36,7 @@ async function main() {
   } = await import("@/lib/songs/queue");
   const { runTranscription } = await import("@/lib/songs/service");
   const { extractAudio } = await import("@/lib/songs/extract");
+  const { detectSongKey } = await import("@/lib/songs/analyse");
 
   const idleDelayMs = Number(process.env.WORKER_POLL_MS ?? 3000);
   let running = true;
@@ -77,6 +78,18 @@ async function main() {
         job.audioSrc = await extractAudio(job);
         console.log(`  audio extracted in ${Math.round((Date.now() - started) / 1000)}s`);
         await markTranscribing(job);
+      }
+
+      // What key it's in. Cheap, needs nothing but ffmpeg, and useful to the
+      // band whether or not there's ever a word of it transcribed — so it
+      // happens before the step that can be turned off.
+      try {
+        const key = await detectSongKey(job);
+        if (key) console.log(`  key: ${key.label} (confidence ${key.confidence})`);
+      } catch (error) {
+        // A song without a key printed on it is a small loss; a job failed over
+        // one is a larger one.
+        console.warn(`  couldn't work out the key: ${error instanceof Error ? error.message : error}`);
       }
 
       // Checked per job, not at startup: the key can be set in the platform

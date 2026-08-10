@@ -27,6 +27,8 @@ export type PresentItem = {
   minutes: number;
   slides: SlidePayload[];
   songSlug: string | null;
+  /** The key the recording turned out to be in, for whoever is playing. */
+  musicalKey: string | null;
   mediaUrl: string | null;
   /**
    * The file attached to this activity, ready to show. A picture with no text
@@ -82,6 +84,7 @@ export async function presentItems(
         minutes: Math.round(entry.endMinutes - entry.startMinutes),
         slides: effectiveSlides(item),
         songSlug: item.songSlug,
+        musicalKey: item.songKey,
         mediaUrl: item.mediaUrl,
         // Always resolved, even where the recording isn't: a picture is content
         // for the screen, not something only the operator plays.

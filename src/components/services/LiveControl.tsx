@@ -207,7 +207,15 @@ export default function LiveControl({
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{item.title}</p>
                   <p className="text-sm text-stone-500">
-                    {[item.kind, item.owner, `${item.minutes} min`].filter(Boolean).join(" · ")}
+                    {[
+                      item.kind,
+                      // The band wants this before anything else on the line.
+                      item.musicalKey ? `key of ${item.musicalKey}` : "",
+                      item.owner,
+                      `${item.minutes} min`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                     {item.followable ? " · follows the recording" : ""}
                   </p>
                   {item.notes ? (

@@ -41,6 +41,7 @@ export async function loadPlanItems(serviceId: string) {
       songId: serviceItems.songId,
       songSlug: songs.slug,
       songSlides: songs.slides,
+      songKey: songs.musicalKey,
       // The recording behind a song item, so the run sheet can play it and let
       // the slides follow it rather than being clicked through by hand.
       songSourceUrl: songs.sourceUrl,

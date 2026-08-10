@@ -35,7 +35,19 @@ export default async function EditSongPage({
         <Link href="/admin/songs" className="text-sm text-stone-500 hover:underline">
           &larr; Songs
         </Link>
-        <h1 className="text-3xl font-semibold">{song.title}</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-semibold">{song.title}</h1>
+          {/* Worked out from the recording, so it's worth saying where it came
+              from — a musician who disagrees with it should trust their ears. */}
+          {song.musicalKey ? (
+            <span
+              title="Worked out from the recording. Change it on the song if your band plays it elsewhere."
+              className="rounded-full border border-violet-300 px-3 py-1 text-sm font-medium text-violet-800 dark:border-violet-800 dark:text-violet-300"
+            >
+              Key of {song.musicalKey}
+            </span>
+          ) : null}
+        </div>
         {song.status === "failed" && song.lastError ? (
           <p className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
             Last run failed: {song.lastError}
