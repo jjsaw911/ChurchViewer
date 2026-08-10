@@ -328,6 +328,28 @@ export const services = pgTable(
   ],
 );
 
+/**
+ * What is on the screen for a service, right now.
+ *
+ * Between windows of one browser this moves through `localStorage` and never
+ * touches the server. This row is what lets a *second machine* follow — the Mac
+ * at the church driving the projector, and in time the iPad driving the Mac —
+ * and what lets a display that was turned on late, or restarted mid-service,
+ * come up on the slide everyone else is looking at.
+ *
+ * One row per service, overwritten in place. There is no history worth keeping;
+ * the question is only ever "what now".
+ */
+export const liveStates = pgTable("live_states", {
+  serviceId: uuid("service_id")
+    .primaryKey()
+    .references(() => services.id, { onDelete: "cascade" }),
+  itemId: uuid("item_id").references(() => serviceItems.id, { onDelete: "set null" }),
+  slideIndex: integer("slide_index").notNull().default(0),
+  blank: boolean("blank").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const serviceItemKindEnum = pgEnum("service_item_kind", [
   "song",
   "scripture",

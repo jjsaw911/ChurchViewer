@@ -71,6 +71,13 @@
       "when": 1786316241923,
       "tag": "0009_bumpy_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786325703479,
+      "tag": "0010_wakeful_raza",
+      "breakpoints": true
     }
   ]
 }

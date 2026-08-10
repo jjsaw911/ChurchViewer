@@ -3,8 +3,51 @@
 Wired to the projector. Its one job is to put the right words on the screen and
 to keep doing that when nothing else works.
 
-Not built yet. See [`../README.md`](../README.md) for the architecture this will
-be built to.
+**A first version exists.** SwiftUI, one window, no Xcode project.
+
+```sh
+./build.sh --release
+open ".build/arm64-apple-macosx/release/ChurchViewer Display.app"
+```
+
+Then ⌘, for settings: paste the address of the output screen (from a plan, press
+**Run it**, then **Open the output screen**, and copy that window's address),
+choose which screen the projector is, and tick the box to fill it at launch.
+You'll be asked to sign in inside the app once; the session persists.
+
+⌘⇧F fills the chosen screen, ⌘⎋ leaves full screen, ⌘R reloads.
+
+## How it follows the operator
+
+The app shows the same output screen the browser does, and both are told what to
+show by the server's live channel (`/api/live/<serviceId>/stream`, server-sent
+events). So the operator drives from the run sheet on their own laptop and the
+Mac follows across the room, with no pairing and nothing to configure.
+
+It's a `WKWebView` around the web presenter rather than a slide renderer written
+a second time in Swift. Two renderers drift, and the day they disagree is the
+Sunday when the screen at the back of the room shows something the operator's
+screen doesn't.
+
+## What it does today
+
+- Fills a **chosen** screen, not whichever one the window landed on — the church
+  Mac has two and the projector isn't the one with the menu bar.
+- Signs in once and stays signed in.
+- Retries a failed load on its own, backing off to every 30 seconds, so a
+  dropped wifi comes back without anybody walking to the Mac.
+- Never starts audio or video by itself.
+
+## What it still needs
+
+- **Offline.** It streams from the server; it doesn't yet cache a service and run
+  from disk. This is the big one, and the reason the parent README exists.
+- **Local control.** No arrow keys of its own yet: control comes from the run
+  sheet elsewhere. If that machine dies mid-service there's nothing at the Mac
+  to drive it with.
+- **Launch at login**, and a Developer ID signature so it opens on a Mac that
+  didn't build it.
+- The local WebSocket server the iPad will eventually talk to.
 
 ## What it has to do
 

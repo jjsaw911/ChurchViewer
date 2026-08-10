@@ -1,104 +1,164 @@
-import { useCallback, useMemo, useSyncExternalStore } from "react";
-import { IDLE_STATE, type LiveState } from "@/lib/live/protocol";
+import { useCallback, useSyncExternalStore } from "react";
+import {
+  IDLE_STATE,
+  isUnderstood,
+  type DisplayMessage,
+  type Envelope,
+  type LiveState,
+} from "@/lib/live/protocol";
 
-/**
- * What's on the screen right now, and how the two windows agree about it.
- *
- * Running a service takes two displays: the operator's, and the one the room
- * can see. They're two windows of one browser, so the state moves through
- * `localStorage` and the `storage` event it fires in every *other* window of
- * the same origin. Nothing goes near the server — a projector that goes blank
- * because the wifi dropped is not a projector — and because the state is
- * written down rather than sent, a window that opens late, or reloads mid
- * service, comes straight back up on the right slide.
- */
-
-// The shape itself lives in `lib/live/protocol`, because the Mac and the iPad
-// will speak it too and there can only be one definition of what's on screen.
 export type { LiveState };
 export const IDLE = IDLE_STATE;
 
-const storageKey = (serviceId: string) => `churchviewer:live:${serviceId}`;
+/**
+ * What's on the screen, and how every window agrees about it.
+ *
+ * Two transports, on purpose:
+ *
+ * `localStorage` carries it between windows of one browser. It's instant, it
+ * costs nothing, and it works with the network unplugged — which is the case
+ * that matters most, because it's the laptop driving the projector talking to
+ * itself.
+ *
+ * The server carries it everywhere else: the Mac at the church, a second
+ * operator's laptop, the iPad in time. Slower by a network hop, and the one
+ * that makes more than one machine possible at all.
+ *
+ * Both feed one in-memory value per service. A window that hears the same
+ * change twice does nothing the second time, because nothing changed.
+ */
+
+type Entry = {
+  state: LiveState;
+  listeners: Set<() => void>;
+  source?: EventSource;
+};
+
+const services = new Map<string, Entry>();
+
+function entryFor(serviceId: string): Entry {
+  const existing = services.get(serviceId);
+  if (existing) return existing;
+
+  const created: Entry = { state: IDLE_STATE, listeners: new Set() };
+  services.set(serviceId, created);
+  return created;
+}
+
+const same = (a: LiveState, b: LiveState) =>
+  a.itemId === b.itemId && a.slideIndex === b.slideIndex && a.blank === b.blank;
 
 /**
- * Windows in this browser tab tree that want to know about our own writes.
- * The `storage` event deliberately doesn't fire in the window that wrote, so
- * the control window would never see its own change without this.
+ * Take a new value from wherever it came from.
+ *
+ * The identity of the object is the snapshot React compares, so an unchanged
+ * state must keep the object it already had or every window re-renders on every
+ * keepalive.
  */
-const listeners = new Map<string, Set<() => void>>();
+function accept(serviceId: string, state: LiveState): void {
+  const entry = entryFor(serviceId);
+  if (same(entry.state, state)) return;
 
-function notify(serviceId: string): void {
-  for (const listener of listeners.get(serviceId) ?? []) listener();
+  entry.state = state;
+  for (const listener of entry.listeners) listener();
 }
 
-function read(serviceId: string): string | null {
-  try {
-    return window.localStorage.getItem(storageKey(serviceId));
-  } catch {
-    // Storage blocked: presenting still works, it just doesn't carry between
-    // windows or survive a reload.
-    return null;
-  }
-}
+const storageKey = (serviceId: string) => `churchviewer:live:${serviceId}`;
 
-export function publishLive(serviceId: string, state: LiveState): void {
-  try {
-    window.localStorage.setItem(storageKey(serviceId), JSON.stringify(state));
-  } catch {
-    // Same again — this is the transport, but a failure here is not worth
-    // taking the operator's screen down for.
-  }
-  notify(serviceId);
-}
-
-function parse(raw: string | null): LiveState {
-  if (!raw) return IDLE;
+function parse(raw: string | null): LiveState | null {
+  if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<LiveState>;
-    if (typeof parsed.slideIndex !== "number") return IDLE;
+    if (typeof parsed.slideIndex !== "number") return null;
     return {
       itemId: typeof parsed.itemId === "string" ? parsed.itemId : null,
       slideIndex: parsed.slideIndex,
       blank: parsed.blank === true,
     };
   } catch {
-    return IDLE;
+    return null;
   }
 }
 
+/** Put a new state up: locally at once, then everywhere else. */
+export function publishLive(serviceId: string, state: LiveState): void {
+  accept(serviceId, state);
+
+  try {
+    window.localStorage.setItem(storageKey(serviceId), JSON.stringify(state));
+  } catch {
+    // Storage blocked. The screen still changes; it just isn't remembered.
+  }
+
+  void fetch(`/api/live/${serviceId}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(state),
+    keepalive: true,
+  }).catch(() => {
+    // Offline, or the server is having a moment. The window in front of the
+    // operator and the projector beside it are already right; the machines
+    // across the room catch up when the stream reconnects.
+  });
+}
+
 /**
- * What should be on screen, in either window.
+ * What should be on screen, in any window.
  *
- * Subscribed rather than held in state, so both windows read one value: what
- * the control window last published.
+ * The first subscriber for a service opens the shared connections and seeds
+ * from storage; the last one to leave closes them.
  */
 export function useLiveState(serviceId: string): LiveState {
   const subscribe = useCallback(
     (onChange: () => void) => {
-      const forService = listeners.get(serviceId) ?? new Set<() => void>();
-      forService.add(onChange);
-      listeners.set(serviceId, forService);
+      const entry = entryFor(serviceId);
+      const first = entry.listeners.size === 0;
+      entry.listeners.add(onChange);
 
       const onStorage = (event: StorageEvent) => {
-        if (event.key === storageKey(serviceId)) onChange();
+        if (event.key !== storageKey(serviceId)) return;
+        const state = parse(event.newValue);
+        if (state) accept(serviceId, state);
       };
       window.addEventListener("storage", onStorage);
 
+      if (first) {
+        // What this browser last knew, before the network is asked anything.
+        const stored = parse(window.localStorage.getItem(storageKey(serviceId)));
+        if (stored) accept(serviceId, stored);
+
+        // EventSource reconnects by itself, which is the whole reason for it:
+        // a projector that dropped its wifi for ten seconds must come back
+        // without anybody noticing.
+        const source = new EventSource(`/api/live/${serviceId}/stream`);
+        source.onmessage = (event) => {
+          try {
+            const parsed = JSON.parse(event.data) as Envelope<DisplayMessage>;
+            if (!isUnderstood(parsed)) return;
+            if (parsed.message.type === "state") accept(serviceId, parsed.message.state);
+          } catch {
+            // A malformed frame is not worth taking the screen down for.
+          }
+        };
+        entry.source = source;
+      }
+
       return () => {
-        forService.delete(onChange);
         window.removeEventListener("storage", onStorage);
+        entry.listeners.delete(onChange);
+
+        if (entry.listeners.size === 0) {
+          entry.source?.close();
+          entry.source = undefined;
+        }
       };
     },
     [serviceId],
   );
 
-  // The raw string is the snapshot: it's stable by value, where a fresh parsed
-  // object every render would tell React the store changed on every check.
-  const raw = useSyncExternalStore(
+  return useSyncExternalStore(
     subscribe,
-    () => read(serviceId),
-    () => null,
+    () => entryFor(serviceId).state,
+    () => IDLE_STATE,
   );
-
-  return useMemo(() => parse(raw), [raw]);
 }
