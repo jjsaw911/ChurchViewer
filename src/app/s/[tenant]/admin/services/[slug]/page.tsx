@@ -6,6 +6,8 @@ import { db } from "@/db/client";
 import { songs } from "@/db/schema";
 import ServiceForm from "@/components/services/ServiceForm";
 import ServicePlanner from "@/components/services/ServicePlanner";
+import SongDrop from "@/components/songs/SongDrop";
+import SplitPane from "@/components/ui/SplitPane";
 import { deleteServiceAction } from "@/lib/services/actions";
 import { requireChurchAccess } from "@/lib/admin/guard";
 import {
@@ -73,23 +75,37 @@ export default async function ServicePlanPage({
         </Link>
       </header>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-semibold">Running order</h2>
-          <p className="text-sm text-stone-500">
-            Click a time to add what happens then.
-          </p>
-        </div>
-        <ServicePlanner
-          tenant={tenant}
-          serviceId={service.id}
-          serviceStartsAt={service.startsAt}
-          items={items}
-          songOptions={songOptions}
-          slideSources={sources}
-          uploadsEnabled={env.storage.isConfigured}
-        />
-      </section>
+      <SplitPane
+        storageKey="churchviewer:planner-panel"
+        panel={
+          <section className="space-y-3 lg:pl-2">
+            <div>
+              <h2 className="font-semibold">Recordings</h2>
+              <p className="text-sm text-stone-500">
+                Drop this week&apos;s video or audio here. Each one becomes a song with slides,
+                ready to drop into the order beside it.
+              </p>
+            </div>
+            <SongDrop tenant={tenant} uploadsEnabled={env.storage.isConfigured} />
+          </section>
+        }
+      >
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-semibold">Running order</h2>
+            <p className="text-sm text-stone-500">Click a time to add what happens then.</p>
+          </div>
+          <ServicePlanner
+            tenant={tenant}
+            serviceId={service.id}
+            serviceStartsAt={service.startsAt}
+            items={items}
+            songOptions={songOptions}
+            slideSources={sources}
+            uploadsEnabled={env.storage.isConfigured}
+          />
+        </section>
+      </SplitPane>
 
       <details className="rounded-xl border border-stone-200 p-5 dark:border-stone-800">
         <summary className="cursor-pointer text-sm font-semibold">Service details</summary>
