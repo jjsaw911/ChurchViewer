@@ -101,6 +101,7 @@ export default async function ServicePlanPage({
           <ServicePlanner
             tenant={tenant}
             serviceId={service.id}
+            serviceSlug={service.slug}
             serviceStartsAt={service.startsAt}
             items={items}
             songOptions={songOptions}

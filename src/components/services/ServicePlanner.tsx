@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import MediaField from "@/components/admin/MediaField";
 import ActivitySlides from "@/components/services/ActivitySlides";
 import ScreenPreview from "@/components/services/ScreenPreview";
+import ScreenPreviewDialog from "@/components/services/ScreenPreviewDialog";
 import {
   addServiceItemAction,
   deleteServiceItemAction,
@@ -131,6 +132,8 @@ type Resize = {
 type Shared = {
   tenant: string;
   serviceId: string;
+  /** For the address of the output window this plan drives. */
+  serviceSlug: string;
   /** The shape of the screen, so every preview is drawn as the room sees it. */
   screenAspect: string;
   songOptions: { id: string; title: string }[];
@@ -449,6 +452,7 @@ function ActivityBlock({
 }) {
   const [panel, setPanel] = useState<"none" | "edit" | "slides" | "media">("none");
   const [addingChild, setAddingChild] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [over, setOver] = useState<"before" | "inside" | null>(null);
   const item = entry.item;
   const minutes = Math.round(item.durationSeconds / 60);
@@ -516,15 +520,8 @@ function ActivityBlock({
           {item.kind}
         </span>
         {/* What the room will see, at the shape of the screen it goes on.
-            Clicking it opens the thing behind it — slides, or the clip. */}
-        <button
-          type="button"
-          onClick={() =>
-            setPanel(
-              panel !== "none" ? "none" : item.attachment?.kind === "video" ? "media" : "slides",
-            )
-          }
-        >
+            Clicking it opens the same thing at a size somebody can read. */}
+        <button type="button" onClick={() => setPreviewing(true)} title="See it full size">
           <ScreenPreview
             aspect={shared.screenAspect}
             slide={slides[0] ?? null}
@@ -620,6 +617,25 @@ function ActivityBlock({
         <p className="border-t border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
           Pinned to {entry.startsAt}, but what&apos;s before it hasn&apos;t finished by then.
         </p>
+      ) : null}
+
+      {previewing ? (
+        <ScreenPreviewDialog
+          serviceId={shared.serviceId}
+          serviceSlug={shared.serviceSlug}
+          aspect={shared.screenAspect}
+          title={item.title}
+          itemId={item.id}
+          slides={slides}
+          backgroundUrl={item.backgroundUrl}
+          picture={
+            slides.length === 0 && item.attachment?.kind === "image"
+              ? item.attachment.url
+              : null
+          }
+          video={item.attachment?.kind === "video" || item.attachment?.kind === "youtube"}
+          onClose={() => setPreviewing(false)}
+        />
       ) : null}
 
       {panel === "media" ? (
@@ -891,6 +907,7 @@ function ActivityBlock({
 export default function ServicePlanner({
   tenant,
   serviceId,
+  serviceSlug,
   serviceStartsAt,
   items,
   songOptions,
@@ -900,6 +917,7 @@ export default function ServicePlanner({
 }: {
   tenant: string;
   serviceId: string;
+  serviceSlug: string;
   serviceStartsAt: string;
   items: PlanItem[];
   songOptions: { id: string; title: string }[];
@@ -992,6 +1010,7 @@ export default function ServicePlanner({
   const shared: Shared = {
     tenant,
     serviceId,
+    serviceSlug,
     screenAspect,
     songOptions,
     slideSources,

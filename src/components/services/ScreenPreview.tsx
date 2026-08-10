@@ -20,11 +20,12 @@ export default function ScreenPreview({
   backgroundUrl,
   picture,
   video,
+  size = "thumb",
   className = "",
 }: {
   /** "16:9", "4:3" — as stored on the service. */
   aspect: string;
-  /** The first slide, which is what the item opens with. */
+  /** The slide to draw; in a row, the first, since that's what it opens with. */
   slide: SlidePayload | null;
   slideCount: number;
   backgroundUrl: string | null;
@@ -32,8 +33,11 @@ export default function ScreenPreview({
   picture: string | null;
   /** True when what's attached is something that plays rather than shows. */
   video: boolean;
+  /** A row thumbnail, or the big one that stands in for the screen itself. */
+  size?: "thumb" | "full";
   className?: string;
 }) {
+  const full = size === "full";
   const [width, height] = aspect.split(":");
   const ratio = `${Number(width) || 16} / ${Number(height) || 9}`;
 
@@ -45,7 +49,11 @@ export default function ScreenPreview({
           ? `${slideCount} slide${slideCount === 1 ? "" : "s"} · shown at ${aspect}`
           : `Nothing to show yet · ${aspect}`
       }
-      className={`relative w-28 shrink-0 overflow-hidden rounded border border-stone-300 bg-black dark:border-stone-700 ${className}`}
+      className={`relative shrink-0 overflow-hidden bg-black ${
+        full
+          ? "w-full rounded-lg"
+          : "w-28 rounded border border-stone-300 dark:border-stone-700"
+      } ${className}`}
     >
       {picture ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -65,11 +73,27 @@ export default function ScreenPreview({
           ) : null}
 
           {slide ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-px px-1 text-center">
-              {slide.lines.slice(0, 3).map((line, index) => (
+            <div
+              className={`absolute inset-0 flex flex-col items-center justify-center text-center ${
+                full ? "gap-3 px-10" : "gap-px px-1"
+              }`}
+            >
+              {slide.label && full ? (
+                <p className="text-xs font-semibold tracking-[0.3em] text-white/40 uppercase">
+                  {slide.label}
+                </p>
+              ) : null}
+
+              {/* A row shows the first three lines; the big one shows all of
+                  them, because fitting is the question it's there to answer. */}
+              {(full ? slide.lines : slide.lines.slice(0, 3)).map((line, index) => (
                 <p
                   key={index}
-                  className="w-full truncate text-[0.5rem] leading-tight font-semibold text-white"
+                  className={
+                    full
+                      ? "w-full text-2xl leading-tight font-semibold text-balance text-white lg:text-4xl"
+                      : "w-full truncate text-[0.5rem] leading-tight font-semibold text-white"
+                  }
                 >
                   {line}
                 </p>
@@ -77,7 +101,7 @@ export default function ScreenPreview({
             </div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-[0.6rem] text-white/40">
+              <span className={full ? "text-lg text-white/30" : "text-[0.6rem] text-white/40"}>
                 {video ? "▶" : "blank"}
               </span>
             </div>
