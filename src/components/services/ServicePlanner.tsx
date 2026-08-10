@@ -966,6 +966,36 @@ export default function ServicePlanner({
   const [pending, setPending] = useState<Record<string, number>>({});
   const [focused, setFocused] = useState<Focus | null>(null);
   const [showCorner, setShowCorner] = useState(true);
+
+  /**
+   * What the corner shows before anybody has pointed at anything: the first
+   * activity that actually puts something on the screen, which is what the
+   * service opens with.
+   */
+  const opening = useMemo<Focus | null>(() => {
+    const first =
+      items.find((item) => effectiveSlides(item).length > 0) ??
+      items.find((item) => item.attachment?.kind === "image") ??
+      items[0];
+    if (!first) return null;
+
+    const slides = effectiveSlides(first);
+    return {
+      itemId: first.id,
+      title: first.title,
+      slides,
+      backgroundUrl: first.backgroundUrl,
+      picture:
+        slides.length === 0 && first.attachment?.kind === "image"
+          ? first.attachment.url
+          : null,
+      video: first.attachment?.kind === "video" || first.attachment?.kind === "youtube",
+    };
+  }, [items]);
+
+  // Sticky: the last thing pointed at stays up, because a preview that clears
+  // itself the moment the mouse moves away is one nobody can look at.
+  const showing = focused ?? opening;
   const [, startTransition] = useTransition();
 
   /**
@@ -1120,23 +1150,25 @@ export default function ServicePlanner({
   }, [items, pending, serviceStartsAt]);
 
   return (
-    <div onMouseLeave={() => setFocused(null)}>
+    <div>
       {/* Pinned to the corner rather than in the flow: it answers "what is on
           the screen at this point" while you're looking somewhere else, which
-          is the whole reason to have it. */}
-      {focused && showCorner ? (
+          is the whole reason to have it. It stays on whatever it was last
+          shown — a preview that vanishes the moment you move the mouse away
+          is one you can't look at. */}
+      {showing && showCorner ? (
         <aside className="fixed right-4 bottom-4 z-40 w-64 space-y-2 rounded-xl border border-stone-200 bg-white/95 p-2 shadow-lg backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
           <ScreenPreview
             size="full"
             aspect={screenAspect}
-            slide={focused.slides[0] ?? null}
-            slideCount={focused.slides.length}
-            backgroundUrl={focused.backgroundUrl}
-            picture={focused.picture}
-            video={focused.video}
+            slide={showing.slides[0] ?? null}
+            slideCount={showing.slides.length}
+            backgroundUrl={showing.backgroundUrl}
+            picture={showing.picture}
+            video={showing.video}
           />
           <div className="flex items-center gap-2">
-            <p className="min-w-0 flex-1 truncate text-xs font-medium">{focused.title}</p>
+            <p className="min-w-0 flex-1 truncate text-xs font-medium">{showing.title}</p>
             <button
               type="button"
               onClick={() => setShowCorner(false)}
