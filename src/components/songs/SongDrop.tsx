@@ -46,12 +46,13 @@ export default function SongDrop({
 
     for (const file of files) {
       try {
-        say(file.name, "uploading…");
-        const item = await uploadToLibrary(tenant, file, (percent) =>
+        say(file.name, "checking…");
+        const { item, reused } = await uploadToLibrary(tenant, file, (percent) =>
           say(file.name, `uploading ${percent}%`),
         );
 
-        say(file.name, "making a song…");
+        if (!reused) say(file.name, "making a song…");
+
         const created = await createSongFromFileAction({
           tenant,
           location: item.location,
@@ -59,11 +60,20 @@ export default function SongDrop({
           contentType: file.type || "application/octet-stream",
         });
 
+        if (!created.ok) {
+          say(file.name, created.error);
+          continue;
+        }
+
+        // Nothing was uploaded and nothing was made: this recording has been
+        // here since the last time somebody opened that folder.
         say(
           file.name,
-          created.ok
-            ? `added as “${created.title}” — the worker has it now`
-            : created.error,
+          created.alreadyThere
+            ? `already here as “${created.title}” — skipped`
+            : reused
+              ? `file was already uploaded; made “${created.title}” from it`
+              : `added as “${created.title}” — the worker has it now`,
         );
       } catch (error) {
         say(file.name, error instanceof Error ? error.message : "failed");

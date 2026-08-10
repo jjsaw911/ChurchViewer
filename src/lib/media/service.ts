@@ -213,6 +213,40 @@ export async function songsForLocations(
   return found;
 }
 
+/**
+ * A file this church already has, by the two things a browser knows for free:
+ * what it's called and how big it is.
+ *
+ * Every upload gets its own unguessable key, so nothing in storage stops the
+ * same file arriving twice — and it will, because the recordings all live in one
+ * folder and nobody remembers which of them went up last week. Name and exact
+ * byte count is enough: two different videos agreeing on both, to the byte, is
+ * not a case worth designing for, and the cost of being wrong is that somebody
+ * reuses a file they meant to replace.
+ */
+export async function findMatchingMedia(
+  churchId: string,
+  filename: string,
+  bytes: number,
+): Promise<typeof mediaAssets.$inferSelect | null> {
+  if (!bytes) return null;
+
+  const [row] = await db
+    .select()
+    .from(mediaAssets)
+    .where(
+      and(
+        eq(mediaAssets.churchId, churchId),
+        eq(mediaAssets.filename, displayFilename(filename)),
+        eq(mediaAssets.bytes, bytes),
+      ),
+    )
+    .orderBy(desc(mediaAssets.createdAt))
+    .limit(1);
+
+  return row ?? null;
+}
+
 export async function getMedia(churchId: string, id: string) {
   const [row] = await db
     .select()

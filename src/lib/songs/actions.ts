@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
@@ -178,12 +178,33 @@ export async function createSongFromFileAction(input: {
   location: string;
   filename: string;
   contentType: string;
-}): Promise<{ ok: true; slug: string; title: string } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; slug: string; title: string; alreadyThere?: boolean }
+  | { ok: false; error: string }
+> {
   const { church } = await requireChurchAccess(input.tenant);
 
   const kind = kindFor(input.contentType, input.filename);
   if (kind !== "audio" && kind !== "video") {
     return { ok: false, error: `${input.filename} isn't audio or video.` };
+  }
+
+  // The file may already be a song — dropped in again from the same folder it
+  // came from last week. Hand back the one that exists rather than making a
+  // second copy of the same words and paying to transcribe them twice.
+  const [existing] = await db
+    .select({ slug: songs.slug, title: songs.title })
+    .from(songs)
+    .where(
+      and(
+        eq(songs.churchId, church.id),
+        or(eq(songs.audioSrc, input.location), eq(songs.videoSrc, input.location))!,
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    return { ok: true, slug: existing.slug, title: existing.title, alreadyThere: true };
   }
 
   const title = titleFromFilename(displayFilename(input.filename));

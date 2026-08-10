@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { mediaAssets } from "@/db/schema";
 import { requireChurchAccess } from "@/lib/admin/guard";
 import {
+  findMatchingMedia,
   getMedia,
   isHeldFile,
   listMedia,
@@ -83,6 +84,26 @@ export async function searchMediaAction(input: {
   });
 
   return { items: await present(church.id, rows), hasMore };
+}
+
+/**
+ * Whether this church already holds this exact file.
+ *
+ * Asked before the bytes go anywhere, so a second copy of last week's video
+ * costs one small request rather than a hundred and fifty megabytes.
+ */
+export async function findExistingMediaAction(input: {
+  tenant: string;
+  filename: string;
+  bytes: number;
+}): Promise<MediaItem | null> {
+  const { church } = await requireChurchAccess(input.tenant);
+
+  const match = await findMatchingMedia(church.id, input.filename, input.bytes);
+  if (!match) return null;
+
+  const [item] = await present(church.id, [match]);
+  return item;
 }
 
 /**

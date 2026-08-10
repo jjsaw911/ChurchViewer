@@ -55,9 +55,9 @@ export default function MediaField({
     setError(null);
     setProgress(0);
     try {
-      const item = await uploadToLibrary(tenant, file, setProgress);
+      const { item, reused } = await uploadToLibrary(tenant, file, setProgress);
       setLocation(item.location);
-      setChosen(item.title);
+      setChosen(reused ? `${item.title} — already in the library` : item.title);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Upload failed.");
     } finally {

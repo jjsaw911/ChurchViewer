@@ -124,10 +124,17 @@ export default function MediaLibrary({
 
     for (const [index, file] of files.entries()) {
       try {
-        const item = await uploadToLibrary(tenant, file, (percent) =>
+        const { item, reused } = await uploadToLibrary(tenant, file, (percent) =>
           setUploading({ done: index, total: files.length, percent }),
         );
-        setItems((current) => [item, ...current]);
+
+        if (reused) {
+          setStatus(`${file.name} is already in the library — nothing uploaded.`);
+          // Bring the one that exists to the top rather than showing it twice.
+          setItems((current) => [item, ...current.filter((row) => row.id !== item.id)]);
+        } else {
+          setItems((current) => [item, ...current]);
+        }
       } catch (error) {
         setStatus(
           `${file.name}: ${error instanceof Error ? error.message : "upload failed"}`,
