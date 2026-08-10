@@ -47,6 +47,22 @@ test("the room to work in leaves a reserve, and never goes negative", async () =
   assert.equal(spaceBudget(90 * GB), 4 * GB);
 });
 
+test("the file handed to OpenAI is named with an extension it accepts", async () => {
+  const { transcribeFilename } = await import("@/lib/songs/service");
+
+  // The extension it already has, when that's one of the accepted ones.
+  assert.equal(transcribeFilename("gcs:churches/hope/uuid-set.mp3", "cornerstone"), "cornerstone.mp3");
+  assert.equal(transcribeFilename("https://example.org/a.wav", "cornerstone"), "cornerstone.wav");
+
+  // A location with no usable extension falls back to the content type…
+  assert.equal(
+    transcribeFilename("gcs:churches/hope/873f1ebd-2f68", "cornerstone", "audio/mp4"),
+    "cornerstone.m4a",
+  );
+  // …and failing that, to mp3, which is what the worker itself produces.
+  assert.equal(transcribeFilename("gcs:churches/hope/873f1ebd", "cornerstone"), "cornerstone.mp3");
+});
+
 test("ffmpeg is asked for mono mp3 with the picture dropped", async () => {
   const { ffmpegArgs } = await load();
   const args = ffmpegArgs("/tmp/in", "/tmp/out.mp3");

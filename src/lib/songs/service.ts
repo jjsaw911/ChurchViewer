@@ -11,6 +11,58 @@ import type { SlidePayload } from "@/lib/songs/types";
 /** OpenAI rejects anything larger; catching it here gives a usable message. */
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 
+/**
+ * What OpenAI will accept, and — this is the part that bites — how it decides.
+ * It reads the extension of the filename it's given, not the bytes and not the
+ * content type, so a perfectly good mp3 sent as `song.audio` comes back as
+ * "Invalid file format".
+ */
+const TRANSCRIBABLE = new Set([
+  "flac",
+  "m4a",
+  "mp3",
+  "mp4",
+  "mpeg",
+  "mpga",
+  "oga",
+  "ogg",
+  "wav",
+  "webm",
+]);
+
+const EXTENSION_FOR_TYPE: Record<string, string> = {
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/mp4": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/aac": "m4a",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/ogg": "ogg",
+  "audio/flac": "flac",
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+};
+
+/**
+ * The name to hand the file over as.
+ *
+ * The location's own extension is the best evidence; the content type the
+ * bucket served it with is the next best. Everything the worker makes itself is
+ * an mp3, which is what makes that a safe last resort rather than a guess.
+ */
+export function transcribeFilename(
+  location: string,
+  slug: string,
+  contentType = "",
+): string {
+  const fromName = (location.split("?")[0].split(".").pop() ?? "").toLowerCase();
+  if (TRANSCRIBABLE.has(fromName)) return `${slug}.${fromName}`;
+
+  const fromType = EXTENSION_FOR_TYPE[contentType.split(";")[0].trim().toLowerCase()];
+  return `${slug}.${fromType ?? "mp3"}`;
+}
+
 export async function getSong(churchId: string, slug: string) {
   const rows = await db
     .select()
@@ -120,7 +172,7 @@ export async function runTranscription(job: {
 
   const transcript = await transcribeAudio({
     audio,
-    filename: `${job.slug}.audio`,
+    filename: transcribeFilename(job.audioSrc, job.slug, audio.type),
     // Names help the model; the words themselves are what we're asking it to hear.
     prompt: [job.title, job.author].filter(Boolean).join(" — ") || undefined,
   });
