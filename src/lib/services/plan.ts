@@ -48,6 +48,7 @@ export async function loadPlanItems(serviceId: string) {
       songTimingOffsetMs: songs.timingOffsetMs,
       slides: serviceItems.slides,
       mediaUrl: serviceItems.mediaUrl,
+      backgroundSrc: serviceItems.backgroundSrc,
     })
     .from(serviceItems)
     .leftJoin(songs, eq(songs.id, serviceItems.songId))

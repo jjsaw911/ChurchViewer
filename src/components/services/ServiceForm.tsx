@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import MediaField from "@/components/admin/MediaField";
 import { saveServiceAction, type ServiceState } from "@/lib/services/actions";
 
 const field =
@@ -11,15 +12,18 @@ export type ServiceFormValues = {
   title: string;
   heldOn: string;
   startsAt: string;
+  backgroundSrc: string | null;
   notes: string;
 };
 
 export default function ServiceForm({
   tenant,
   service,
+  uploadsEnabled,
 }: {
   tenant: string;
   service?: ServiceFormValues;
+  uploadsEnabled: boolean;
 }) {
   const [state, action, pending] = useActionState<ServiceState, FormData>(saveServiceAction, {});
   const echoed = state.values;
@@ -74,6 +78,17 @@ export default function ServiceForm({
           <p className="text-xs text-stone-500">24-hour, like 10:00 or 18:30.</p>
         </div>
       </div>
+
+      <MediaField
+        name="backgroundSrc"
+        label="Background on the projector"
+        tenant={tenant}
+        defaultValue={initial("backgroundSrc", service?.backgroundSrc ?? "")}
+        accept="image/*"
+        kinds={["image"]}
+        uploadsEnabled={uploadsEnabled}
+        hint="Sits behind the words for the whole service. Anything busy or bright makes lyrics hard to read from the back — the screen darkens it, but a quiet picture still wins. Leave it empty for black."
+      />
 
       <div className="space-y-1.5">
         <label htmlFor="notes" className="text-sm font-medium">

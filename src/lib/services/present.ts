@@ -34,6 +34,11 @@ export type PresentItem = {
    * and most bumpers actually arrive.
    */
   attachment: Attachment | null;
+  /**
+   * What goes behind the words on the projector: this activity's own
+   * background, or the service's, or nothing — which the screen draws as black.
+   */
+  backgroundUrl: string | null;
   /** Set when there's a recording this item's slides are timed against. */
   videoId: string | null;
   audioUrl: string | null;
@@ -51,8 +56,11 @@ export async function presentItems(
   serviceStartsAt: string,
   /** Resolving audio means signing bucket URLs; the output screen never plays. */
   withMedia = true,
+  /** The service's own background, behind anything without one of its own. */
+  serviceBackgroundSrc: string | null = null,
 ): Promise<PresentItem[]> {
   const plan = layoutPlan(rows, serviceStartsAt);
+  const serviceBackground = await playbackUrl(serviceBackgroundSrc);
 
   return Promise.all(
     plan.flat.map(async (entry) => {
@@ -78,6 +86,7 @@ export async function presentItems(
         // Always resolved, even where the recording isn't: a picture is content
         // for the screen, not something only the operator plays.
         attachment: await resolveAttachment(item.mediaUrl),
+        backgroundUrl: (await playbackUrl(item.backgroundSrc)) ?? serviceBackground,
         videoId,
         audioUrl,
         timingOffsetMs: item.songTimingOffsetMs ?? 0,

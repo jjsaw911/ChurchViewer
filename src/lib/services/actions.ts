@@ -89,6 +89,7 @@ export async function saveServiceAction(
     title,
     heldOn,
     startsAt,
+    backgroundSrc: value(formData, "backgroundSrc") || null,
     notes: value(formData, "notes"),
   };
 
@@ -389,6 +390,7 @@ export async function updateServiceItemAction(formData: FormData): Promise<void>
       // from "song" clears it rather than leaving a dangling reference.
       songId: kind === "song" ? songId : null,
       mediaUrl: value(formData, "mediaUrl") || null,
+      backgroundSrc: value(formData, "backgroundSrc") || null,
     })
     .where(
       and(

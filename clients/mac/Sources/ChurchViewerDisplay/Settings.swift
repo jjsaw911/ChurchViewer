@@ -1,64 +1,82 @@
 import Foundation
 import AppKit
 
-/// What the church sets once and never thinks about again.
+/// One output: an address, a screen to put it on, and whether to fill that
+/// screen the moment the app opens.
 ///
-/// Kept in `UserDefaults` rather than in a file next to the app: the Mac at a
-/// church gets rebuilt, moved between users, and occasionally re-installed by
-/// somebody who is not the person who set it up, and defaults survive all of
-/// that in the place a Mac administrator would look. It's also what the
-/// installer writes, so a scripted setup and the settings window are two doors
-/// into one room.
+/// There are two of these — the projector and the stage monitor — because a
+/// church Mac usually has both hanging off it, showing different things to
+/// different people. The stage one is optional; plenty of rooms have no monitor
+/// facing the platform.
+@MainActor
+final class OutputSettings: ObservableObject {
+    let name: String
+    private let prefix: String
+
+    @Published var address: String {
+        didSet { UserDefaults.standard.set(address, forKey: "\(prefix)URL") }
+    }
+
+    /// Matched by name, because the number a screen has changes the moment a
+    /// projector is unplugged and plugged back in.
+    @Published var screenName: String {
+        didSet { UserDefaults.standard.set(screenName, forKey: "\(prefix)Screen") }
+    }
+
+    @Published var fillOnLaunch: Bool {
+        didSet { UserDefaults.standard.set(fillOnLaunch, forKey: "\(prefix)FullScreen") }
+    }
+
+    init(name: String, prefix: String, legacyURLKey: String? = nil) {
+        self.name = name
+        self.prefix = prefix
+
+        let defaults = UserDefaults.standard
+        // An earlier version stored the projector under different names; a Mac
+        // that has already been set up shouldn't be set up again.
+        address = defaults.string(forKey: "\(prefix)URL")
+            ?? legacyURLKey.flatMap { defaults.string(forKey: $0) }
+            ?? ""
+        screenName = defaults.string(forKey: "\(prefix)Screen")
+            ?? defaults.string(forKey: "screenName")
+            ?? ""
+        fillOnLaunch = defaults.object(forKey: "\(prefix)FullScreen") as? Bool
+            ?? defaults.bool(forKey: "fullScreenOnLaunch")
+    }
+
+    var url: URL? {
+        guard let url = URL(string: address), url.scheme?.hasPrefix("http") == true else {
+            return nil
+        }
+        return url
+    }
+
+    var isConfigured: Bool { url != nil }
+
+    /// The screen this output belongs on, or the main one if it has gone.
+    func targetScreen() -> NSScreen? {
+        NSScreen.screens.first { $0.localizedName == screenName } ?? NSScreen.main
+    }
+}
+
+/// Everything the church sets once and never thinks about again.
 @MainActor
 final class Settings: ObservableObject {
-    /// The output screen for the service, copied from the browser's address bar.
-    @Published var displayURL: String {
-        didSet { UserDefaults.standard.set(displayURL, forKey: Keys.displayURL) }
-    }
+    /// What the room sees: words, over whatever background the plan carries.
+    let projector = OutputSettings(name: "Projector", prefix: "projector", legacyURLKey: "displayURL")
 
-    /// Which physical screen the words go on. Matched by name, because the
-    /// number a screen has changes when a projector is unplugged and plugged in.
-    @Published var screenName: String {
-        didSet { UserDefaults.standard.set(screenName, forKey: Keys.screenName) }
-    }
+    /// What the platform sees: this slide, the next one, the notes, the clock.
+    let stage = OutputSettings(name: "Stage", prefix: "stage")
 
-    /// Whether to go straight to full screen on the chosen display at launch.
-    @Published var fullScreenOnLaunch: Bool {
-        didSet { UserDefaults.standard.set(fullScreenOnLaunch, forKey: Keys.fullScreenOnLaunch) }
-    }
-
-    /// Whether the Mac opens this by itself after a restart — which is what
-    /// happens to a church machine on a Saturday night after an update.
     @Published var openAtLogin: Bool {
         didSet { LoginItem.set(enabled: openAtLogin) }
     }
 
-    private enum Keys {
-        static let displayURL = "displayURL"
-        static let screenName = "screenName"
-        static let fullScreenOnLaunch = "fullScreenOnLaunch"
-    }
-
     init() {
-        let defaults = UserDefaults.standard
-        displayURL = defaults.string(forKey: Keys.displayURL) ?? ""
-        screenName = defaults.string(forKey: Keys.screenName) ?? ""
-        fullScreenOnLaunch = defaults.bool(forKey: Keys.fullScreenOnLaunch)
         openAtLogin = LoginItem.isEnabled
     }
 
-    var isConfigured: Bool { URL(string: displayURL)?.scheme?.hasPrefix("http") == true }
-
-    var url: URL? { isConfigured ? URL(string: displayURL) : nil }
-
-    /// The screen the words belong on, or the main one if that screen has gone.
-    ///
-    /// A projector that has been unplugged shouldn't leave the app with nowhere
-    /// to draw; falling back to the main screen is visible and recoverable,
-    /// where refusing to open a window is neither.
-    func targetScreen() -> NSScreen? {
-        NSScreen.screens.first { $0.localizedName == screenName } ?? NSScreen.main
-    }
+    var isConfigured: Bool { projector.isConfigured || stage.isConfigured }
 }
 
 /// Opening at login, as a launch agent.

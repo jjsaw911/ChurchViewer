@@ -78,6 +78,13 @@
       "when": 1786325703479,
       "tag": "0010_wakeful_raza",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786330381049,
+      "tag": "0011_bouncy_warstar",
+      "breakpoints": true
     }
   ]
 }

@@ -4,8 +4,8 @@ import AppKit
 /// The settings window.
 ///
 /// A window rather than a sheet, and deliberately: a sheet belongs to the window
-/// it hangs off, and that window is the one filling the projector. Settings
-/// would have opened in front of the congregation.
+/// it hangs off, and those windows are the ones filling the projector and the
+/// stage monitor. Settings would have opened in front of the congregation.
 struct SettingsView: View {
     @ObservedObject var settings: Settings
     let onReload: () -> Void
@@ -13,116 +13,116 @@ struct SettingsView: View {
     @State private var screens: [String] = NSScreen.screens.map(\.localizedName)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            header
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("ChurchViewer Display").font(.title3.weight(.semibold))
+                Text("Two outputs: what the room sees, and what the platform sees.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            OutputSection(
+                output: settings.projector,
+                screens: $screens,
+                windowTitle: "Projector",
+                explanation: "From a plan: Run it, then Open the output screen.",
+                onRescan: rescan
+            )
 
             Divider()
 
-            address
-            screenChoice
-            behaviour
+            OutputSection(
+                output: settings.stage,
+                screens: $screens,
+                windowTitle: "Stage",
+                explanation: "From a plan: Run it, then Open the stage display. Leave empty if there's no monitor facing the platform.",
+                onRescan: rescan
+            )
 
             Divider()
 
-            actions
+            Toggle("Open automatically when this Mac starts up", isOn: $settings.openAtLogin)
+
+            HStack {
+                Button("Reload both", action: onReload)
+                Spacer()
+                Button("Close") { NSApp.keyWindow?.close() }
+                    .keyboardShortcut(.defaultAction)
+            }
         }
         .padding(24)
-        .frame(width: 540)
+        .frame(width: 580)
         .onAppear {
-            screens = NSScreen.screens.map(\.localizedName)
+            rescan()
             WindowPlacement.bringSettingsToOperator()
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("ChurchViewer Display").font(.title3.weight(.semibold))
-            Text(settings.isConfigured ? "Showing \(hostDescription)" : "Not set up yet")
-                .font(.callout)
-                .foregroundStyle(settings.isConfigured ? Color.secondary : Color.red)
-        }
-    }
+    private func rescan() { screens = NSScreen.screens.map(\.localizedName) }
+}
 
-    private var hostDescription: String {
-        settings.url?.host ?? settings.displayURL
-    }
+/// One output's three settings, and the two buttons for trying them now.
+private struct OutputSection: View {
+    @ObservedObject var output: OutputSettings
+    @Binding var screens: [String]
+    let windowTitle: String
+    let explanation: String
+    let onRescan: () -> Void
 
-    private var address: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Output screen address").font(.callout.weight(.medium))
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(output.name).font(.headline)
+                Spacer()
+                Text(output.isConfigured ? (output.url?.host ?? "") : "not set")
+                    .font(.caption)
+                    .foregroundStyle(output.isConfigured ? Color.secondary : Color.red)
+            }
 
             HStack {
-                TextField(
-                    "https://yourchurch.churchviewer.com/present/services/…/screen",
-                    text: $settings.displayURL
-                )
-                .textFieldStyle(.roundedBorder)
+                TextField("https://…", text: $output.address)
+                    .textFieldStyle(.roundedBorder)
 
                 Button("Paste") {
                     if let clipboard = NSPasteboard.general.string(forType: .string) {
-                        settings.displayURL = clipboard.trimmingCharacters(in: .whitespacesAndNewlines)
+                        output.address = clipboard.trimmingCharacters(in: .whitespacesAndNewlines)
                     }
                 }
             }
 
-            Text(
-                "In a browser: open the service plan, press Run it, then Open the output "
-                + "screen — and copy that window's address. You'll sign in here once."
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-    }
-
-    private var screenChoice: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Screen").font(.callout.weight(.medium))
+            Text(explanation).font(.caption).foregroundStyle(.secondary)
 
             HStack {
-                Picker("", selection: $settings.screenName) {
+                Picker("Screen", selection: $output.screenName) {
                     Text("Wherever the window is").tag("")
                     ForEach(screens, id: \.self) { name in
                         Text(name).tag(name)
                     }
                 }
-                .labelsHidden()
+                .frame(maxWidth: 320)
 
-                Button("Rescan") { screens = NSScreen.screens.map(\.localizedName) }
+                Button("Rescan", action: onRescan)
             }
 
-            Text(
-                screens.count > 1
-                    ? "The projector is usually the one that isn't the built-in display."
-                    : "Only one screen is connected at the moment. Plug the projector in and press Rescan."
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-    }
+            Toggle("Fill that screen when the app opens", isOn: $output.fillOnLaunch)
 
-    private var behaviour: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle("Fill that screen as soon as the app opens", isOn: $settings.fullScreenOnLaunch)
-            Toggle("Open automatically when this Mac starts up", isOn: $settings.openAtLogin)
-        }
-    }
+            HStack {
+                Button("Show it now") {
+                    openWindow(id: windowTitle.lowercased())
+                    WindowPlacement.move(
+                        window: windowTitle,
+                        to: output.targetScreen(),
+                        fullScreen: true
+                    )
+                }
+                .disabled(!output.isConfigured)
 
-    private var actions: some View {
-        HStack {
-            Button("Fill the projector now") {
-                WindowPlacement.moveDisplayWindow(to: settings.targetScreen(), fullScreen: true)
+                Button("Leave full screen") {
+                    WindowPlacement.leaveFullScreen(window: windowTitle)
+                }
             }
-            .disabled(!settings.isConfigured)
-
-            Button("Leave full screen") { WindowPlacement.leaveFullScreen() }
-
-            Button("Reload the page", action: onReload)
-                .disabled(!settings.isConfigured)
-
-            Spacer()
-
-            Button("Close") { NSApp.keyWindow?.close() }
-                .keyboardShortcut(.defaultAction)
         }
     }
 }

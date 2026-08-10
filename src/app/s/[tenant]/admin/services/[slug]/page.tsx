@@ -112,11 +112,13 @@ export default async function ServicePlanPage({
         <div className="space-y-6 pt-5">
           <ServiceForm
             tenant={tenant}
+            uploadsEnabled={env.storage.isConfigured}
             service={{
               slug: service.slug,
               title: service.title,
               heldOn: service.heldOn,
               startsAt: service.startsAt,
+              backgroundSrc: service.backgroundSrc,
               notes: service.notes,
             }}
           />

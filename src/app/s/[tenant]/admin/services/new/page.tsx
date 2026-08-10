@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import ServiceForm from "@/components/services/ServiceForm";
 import { requireChurchAccess } from "@/lib/admin/guard";
+import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Plan a service" };
 
@@ -23,7 +24,7 @@ export default async function NewServicePage({
         </p>
       </div>
 
-      <ServiceForm tenant={tenant} />
+      <ServiceForm tenant={tenant} uploadsEnabled={env.storage.isConfigured} />
     </div>
   );
 }

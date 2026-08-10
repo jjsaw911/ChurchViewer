@@ -319,6 +319,14 @@ export const services = pgTable(
     heldOn: date("held_on").notNull(),
     /** Local wall-clock start, `HH:MM` — the running order counts from here. */
     startsAt: text("starts_at").notNull().default("10:00"),
+    /**
+     * What sits behind the words on the projector for this whole service.
+     *
+     * A location like any other media — see `src/lib/storage.ts`. Empty means
+     * black, which is the right default: black is what a projector shows best
+     * and what nobody has to design.
+     */
+    backgroundSrc: text("background_src"),
     notes: text("notes").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -414,6 +422,14 @@ export const serviceItems = pgTable(
      * Same location format as everything else — see `src/lib/storage.ts`.
      */
     mediaUrl: text("media_url"),
+    /**
+     * A background for this activity only, overriding the service's own.
+     *
+     * The communion table wants a different picture behind it than the notices
+     * do — and a song that came with artwork wants that. Empty means whatever
+     * the service is using.
+     */
+    backgroundSrc: text("background_src"),
     /** Who's doing it — "Worship team", "Pastor Alina". */
     owner: text("owner").notNull().default(""),
   },

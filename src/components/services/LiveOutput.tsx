@@ -37,10 +37,13 @@ export default function LiveOutput({
   serviceId,
   serviceTitle,
   items,
+  /** The service's background, for the stretches when nothing is live. */
+  fallbackBackground = null,
 }: {
   serviceId: string;
   serviceTitle: string;
   items: PresentItem[];
+  fallbackBackground?: string | null;
 }) {
   const state = useLiveState(serviceId);
   useFullscreenKey();
@@ -63,8 +66,26 @@ export default function LiveOutput({
     );
   }
 
+  // Blanking means black. A background showing through would be a screen that
+  // still has something on it, which is the opposite of what was asked for.
+  const background = state.blank ? null : (item?.backgroundUrl ?? fallbackBackground);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black px-12 text-white">
+      {background ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={background}
+            alt=""
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          />
+          {/* Words first: a photograph is rarely dark enough on its own, and a
+              line nobody at the back can read is worse than no picture. */}
+          <div className="pointer-events-none absolute inset-0 bg-black/45" />
+        </>
+      ) : null}
+
       {slide ? (
         <div className="space-y-6 text-center">
           {slide.label ? (

@@ -4,6 +4,7 @@ import LiveOutput from "@/components/services/LiveOutput";
 import { requireChurchAccess } from "@/lib/admin/guard";
 import { getService, loadPlanItems, toPlanItems } from "@/lib/services/plan";
 import { presentItems } from "@/lib/services/present";
+import { playbackUrl } from "@/lib/storage";
 
 export const metadata: Metadata = { title: "On screen" };
 
@@ -23,7 +24,14 @@ export default async function ServiceScreenPage({
 
   const rows = toPlanItems(await loadPlanItems(service.id));
   // The recording plays in the operator's window, never in this one.
-  const items = await presentItems(rows, service.startsAt, false);
+  const items = await presentItems(rows, service.startsAt, false, service.backgroundSrc);
 
-  return <LiveOutput serviceId={service.id} serviceTitle={service.title} items={items} />;
+  return (
+    <LiveOutput
+      serviceId={service.id}
+      serviceTitle={service.title}
+      items={items}
+      fallbackBackground={await playbackUrl(service.backgroundSrc)}
+    />
+  );
 }

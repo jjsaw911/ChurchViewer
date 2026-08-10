@@ -51,6 +51,8 @@ export type PlanItem = {
   songSlides: SlidePayload[];
   slides: SlidePayload[];
   mediaUrl: string | null;
+  /** A background for this activity only, overriding the service's own. */
+  backgroundSrc: string | null;
   /** The attached file, already resolved into something showable. */
   attachment: Attachment | null;
   /** The linked song's recording, so a row can be listened to where it sits. */
@@ -730,6 +732,20 @@ function ActivityBlock({
                   hint="Shows on this row, and goes on the screen when it's a picture and there are no slides."
                 />
               </div>
+            </div>
+
+            <div className="text-xs">
+              <MediaField
+                key={item.backgroundSrc ?? "no-background"}
+                name="backgroundSrc"
+                label="Background for this activity"
+                tenant={shared.tenant}
+                defaultValue={item.backgroundSrc}
+                accept="image/*"
+                kinds={["image"]}
+                uploadsEnabled={shared.uploadsEnabled}
+                hint="Behind the words on the projector, for this one activity. Empty uses the service's own."
+              />
             </div>
 
             <label className="block space-y-1 text-xs">
