@@ -129,11 +129,23 @@ type Resize = {
   step: (itemId: string, fromMinutes: number, delta: number) => void;
 };
 
+/** What the corner preview is currently showing. */
+export type Focus = {
+  itemId: string;
+  title: string;
+  slides: SlidePayload[];
+  backgroundUrl: string | null;
+  picture: string | null;
+  video: boolean;
+};
+
 type Shared = {
   tenant: string;
   serviceId: string;
   /** For the address of the output window this plan drives. */
   serviceSlug: string;
+  /** Called as the pointer moves down the plan, to keep the corner in step. */
+  focus: (focus: Focus) => void;
   /** The shape of the screen, so every preview is drawn as the room sees it. */
   screenAspect: string;
   songOptions: { id: string; title: string }[];
@@ -465,8 +477,24 @@ function ActivityBlock({
   const dragging = shared.drag.id;
   const elsewhere = Boolean(dragging) && dragging !== item.id;
 
+  const picture =
+    slides.length === 0 && item.attachment?.kind === "image" ? item.attachment.url : null;
+  const isVideo = item.attachment?.kind === "video" || item.attachment?.kind === "youtube";
+
   return (
     <div
+      // The corner preview follows the pointer down the plan, so scanning the
+      // order shows what the room sees at each point in it.
+      onMouseEnter={() =>
+        shared.focus({
+          itemId: item.id,
+          title: item.title,
+          slides,
+          backgroundUrl: item.backgroundUrl,
+          picture,
+          video: isVideo,
+        })
+      }
       // Dropping on a block puts the dragged item immediately above it, at that
       // block's own level — which is how a song gets dragged into the set it's
       // dropped onto, and back out onto the running order.
@@ -579,9 +607,10 @@ function ActivityBlock({
           </span>
         )}
 
-        {/* Anything with a player behind it opens one in place, so checking the
-            clip is the right clip doesn't mean leaving the plan. */}
-        {playable ? (
+        {/* Audio opens a player in place, so checking the recording is the
+            right one doesn't mean leaving the plan. Video is already shown
+            below, so it needs no button. */}
+        {playable && !isVideo ? (
           <button
             type="button"
             onClick={() => setPanel(panel === "media" ? "none" : "media")}
@@ -619,6 +648,15 @@ function ActivityBlock({
         </p>
       ) : null}
 
+      {/* A clip attached to an activity plays inside that activity, not behind
+          a button: it's part of what happens at this point in the service, and
+          the person planning wants to see which clip it is. */}
+      {isVideo ? (
+        <div className="border-t border-stone-100 p-3 dark:border-stone-800">
+          <AttachmentPlayer item={item} />
+        </div>
+      ) : null}
+
       {previewing ? (
         <ScreenPreviewDialog
           serviceId={shared.serviceId}
@@ -628,12 +666,8 @@ function ActivityBlock({
           itemId={item.id}
           slides={slides}
           backgroundUrl={item.backgroundUrl}
-          picture={
-            slides.length === 0 && item.attachment?.kind === "image"
-              ? item.attachment.url
-              : null
-          }
-          video={item.attachment?.kind === "video" || item.attachment?.kind === "youtube"}
+          picture={picture}
+          video={isVideo}
           onClose={() => setPreviewing(false)}
         />
       ) : null}
@@ -930,6 +964,8 @@ export default function ServicePlanner({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, number>>({});
+  const [focused, setFocused] = useState<Focus | null>(null);
+  const [showCorner, setShowCorner] = useState(true);
   const [, startTransition] = useTransition();
 
   /**
@@ -1011,6 +1047,7 @@ export default function ServicePlanner({
     tenant,
     serviceId,
     serviceSlug,
+    focus: setFocused,
     screenAspect,
     songOptions,
     slideSources,
@@ -1083,7 +1120,45 @@ export default function ServicePlanner({
   }, [items, pending, serviceStartsAt]);
 
   return (
-    <div>
+    <div onMouseLeave={() => setFocused(null)}>
+      {/* Pinned to the corner rather than in the flow: it answers "what is on
+          the screen at this point" while you're looking somewhere else, which
+          is the whole reason to have it. */}
+      {focused && showCorner ? (
+        <aside className="fixed right-4 bottom-4 z-40 w-64 space-y-2 rounded-xl border border-stone-200 bg-white/95 p-2 shadow-lg backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
+          <ScreenPreview
+            size="full"
+            aspect={screenAspect}
+            slide={focused.slides[0] ?? null}
+            slideCount={focused.slides.length}
+            backgroundUrl={focused.backgroundUrl}
+            picture={focused.picture}
+            video={focused.video}
+          />
+          <div className="flex items-center gap-2">
+            <p className="min-w-0 flex-1 truncate text-xs font-medium">{focused.title}</p>
+            <button
+              type="button"
+              onClick={() => setShowCorner(false)}
+              title="Hide this"
+              className="text-xs text-stone-500 hover:underline"
+            >
+              hide
+            </button>
+          </div>
+        </aside>
+      ) : null}
+
+      {!showCorner ? (
+        <button
+          type="button"
+          onClick={() => setShowCorner(true)}
+          className="fixed right-4 bottom-4 z-40 rounded-lg border border-stone-300 bg-white/95 px-3 py-1.5 text-xs font-medium shadow backdrop-blur dark:border-stone-700 dark:bg-stone-900/95"
+        >
+          Show the screen preview
+        </button>
+      ) : null}
+
       {dropError ? (
         <p className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
           {dropError}
