@@ -1,8 +1,30 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useLiveState } from "@/lib/services/live";
 import type { PresentItem } from "@/lib/services/present";
+
+/**
+ * F fills the screen, F again gives it back.
+ *
+ * The window is dragged onto a projector and then wants to lose its title bar,
+ * and the person doing that is standing at the back of a room — so it's one key
+ * on the window itself rather than something to find in a menu.
+ */
+export function useFullscreenKey(): void {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "f") return;
+      event.preventDefault();
+
+      if (document.fullscreenElement) void document.exitFullscreen?.();
+      else void document.documentElement.requestFullscreen?.();
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+}
 
 /**
  * The screen the room sees. Nothing but the slide.
@@ -21,6 +43,7 @@ export default function LiveOutput({
   items: PresentItem[];
 }) {
   const state = useLiveState(serviceId);
+  useFullscreenKey();
   const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
 
   const item = state.itemId ? byId.get(state.itemId) : undefined;
@@ -59,7 +82,14 @@ export default function LiveOutput({
           ))}
         </div>
       ) : (
-        <p className="text-2xl text-white/30">{serviceTitle}</p>
+        // Only while nothing is up: the moment there are words on the screen,
+        // the screen has nothing on it but the words.
+        <div className="space-y-3 text-center">
+          <p className="text-2xl text-white/30">{serviceTitle}</p>
+          <p className="text-xs tracking-[0.2em] text-white/15 uppercase">
+            Press F for full screen
+          </p>
+        </div>
       )}
     </div>
   );

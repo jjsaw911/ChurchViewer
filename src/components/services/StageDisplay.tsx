@@ -1,5 +1,6 @@
 "use client";
 
+import { useFullscreenKey } from "@/components/services/LiveOutput";
 import { formatClock, useNow } from "@/lib/services/clock";
 import { useLiveState } from "@/lib/services/live";
 import type { PresentItem } from "@/lib/services/present";
@@ -21,6 +22,7 @@ export default function StageDisplay({
   items: PresentItem[];
 }) {
   const state = useLiveState(serviceId);
+  useFullscreenKey();
   const now = useNow();
 
   const index = items.findIndex((item) => item.id === state.itemId);
