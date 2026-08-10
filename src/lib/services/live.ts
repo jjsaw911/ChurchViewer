@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { IDLE_STATE, type LiveState } from "@/lib/live/protocol";
 
 /**
  * What's on the screen right now, and how the two windows agree about it.
@@ -12,15 +13,10 @@ import { useCallback, useMemo, useSyncExternalStore } from "react";
  * service, comes straight back up on the right slide.
  */
 
-export type LiveState = {
-  /** The activity being shown, or null when nothing is. */
-  itemId: string | null;
-  slideIndex: number;
-  /** A deliberate blank — the operator's "not this, not yet". */
-  blank: boolean;
-};
-
-export const IDLE: LiveState = { itemId: null, slideIndex: 0, blank: false };
+// The shape itself lives in `lib/live/protocol`, because the Mac and the iPad
+// will speak it too and there can only be one definition of what's on screen.
+export type { LiveState };
+export const IDLE = IDLE_STATE;
 
 const storageKey = (serviceId: string) => `churchviewer:live:${serviceId}`;
 
