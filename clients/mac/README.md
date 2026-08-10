@@ -35,9 +35,12 @@ Scripted, for anyone who prefers it:
 
 ## Using it
 
-Sign in inside the app once; the session persists. Then ⌘, and choose which
-screen the projector is — that list is live, which is why the installer doesn't
-ask for it.
+Everything is in the menu bar icon (the little TV, top right of your Mac) — it
+stays reachable even when the window is filling a projector. Settings opens as
+its own window on your screen, never on the projector, and holds the address,
+the screen picker, "fill at launch", "open at startup", and buttons to fill the
+projector or reload. Moving the mouse over the display window also shows a
+Settings button; it fades when you stop.
 
 ⌘⇧F fills the chosen screen, ⌘⎋ leaves full screen, ⌘R reloads.
 
@@ -69,8 +72,8 @@ screen doesn't.
 - **Local control.** No arrow keys of its own yet: control comes from the run
   sheet elsewhere. If that machine dies mid-service there's nothing at the Mac
   to drive it with.
-- **Launch at login**, and a Developer ID signature so it opens on a Mac that
-  didn't build it.
+- A Developer ID signature, so it opens on a Mac that didn't build it without
+  a right-click.
 - The local WebSocket server the iPad will eventually talk to.
 
 ## What it has to do
