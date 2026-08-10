@@ -30,6 +30,16 @@ export const env = {
     return process.env.NODE_ENV === "production";
   },
 
+  /**
+   * Where a church that wants to chip in should go — a payment link somebody
+   * sets up themselves. Unset, the support page still explains what the server
+   * costs and simply doesn't ask for anything, which is a fine state for it to
+   * be in.
+   */
+  get donateUrl(): string | null {
+    return process.env.NEXT_PUBLIC_DONATE_URL || null;
+  },
+
   google: {
     get clientId(): string {
       return required("GOOGLE_CLIENT_ID");

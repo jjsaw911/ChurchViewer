@@ -52,9 +52,15 @@ export default async function MarketingLayout({ children }: LayoutProps<"/">) {
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">{children}</main>
 
       <footer className="border-t border-stone-200 py-6 dark:border-stone-800">
-        <div className="mx-auto flex max-w-6xl items-center gap-2 px-6 text-sm text-stone-500">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-6 text-sm text-stone-500">
           <LogoMark className="h-5 w-5" />
-          ChurchViewer &middot; present worship, inspire people.
+          <span>ChurchViewer &middot; free and open source.</span>
+          <Link
+            href="/support"
+            className="font-medium text-amber-700 hover:underline dark:text-amber-500"
+          >
+            What it costs to run
+          </Link>
         </div>
       </footer>
     </>
