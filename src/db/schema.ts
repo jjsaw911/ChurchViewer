@@ -339,6 +339,13 @@ export const services = pgTable(
      * and what nobody has to design.
      */
     backgroundSrc: text("background_src"),
+    /**
+     * The shape of the screen this service goes on — "16:9", "4:3". Kept per
+     * service rather than per church because a Christmas service in the hall
+     * meets a different projector than a Sunday in the building, and the plan is
+     * where somebody already is when they notice.
+     */
+    screenAspect: text("screen_aspect").notNull().default("16:9"),
     notes: text("notes").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

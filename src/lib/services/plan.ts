@@ -69,12 +69,20 @@ export type PlanItemRow = ReturnType<typeof toPlanItems>[number];
  * draws each one rather than printing its URL. A row without an attachment
  * costs nothing here; `resolveAttachment` only signs what exists.
  */
-export async function withAttachments(rows: PlanItemRow[]) {
+export async function withAttachments(
+  rows: PlanItemRow[],
+  serviceBackgroundSrc: string | null = null,
+) {
+  const serviceBackground = await playbackUrl(serviceBackgroundSrc);
+
   return Promise.all(
     rows.map(async (row) => ({
       ...row,
       attachment: await resolveAttachment(row.mediaUrl),
       songAudioUrl: row.songId ? await playbackUrl(row.songAudioSrc) : null,
+      // An activity's own background, or the service's behind it — the same
+      // rule the screen itself follows.
+      backgroundUrl: (await playbackUrl(row.backgroundSrc)) ?? serviceBackground,
     })),
   );
 }

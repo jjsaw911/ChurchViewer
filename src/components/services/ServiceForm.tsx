@@ -13,6 +13,7 @@ export type ServiceFormValues = {
   heldOn: string;
   startsAt: string;
   backgroundSrc: string | null;
+  screenAspect: string;
   notes: string;
 };
 
@@ -62,6 +63,27 @@ export default function ServiceForm({
             required
             className={field}
           />
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="screenAspect" className="text-sm font-medium">
+            Screen shape
+          </label>
+          <select
+            id="screenAspect"
+            name="screenAspect"
+            defaultValue={initial("screenAspect", service?.screenAspect ?? "16:9")}
+            className={field}
+          >
+            <option value="16:9">16:9 — most projectors and TVs</option>
+            <option value="16:10">16:10 — some older projectors</option>
+            <option value="4:3">4:3 — square-ish, older screens</option>
+            <option value="21:9">21:9 — ultrawide</option>
+          </select>
+          <p className="text-xs text-stone-500">
+            What the previews in the running order are drawn at, so a line that
+            won&apos;t fit is obvious here rather than on Sunday.
+          </p>
         </div>
 
         <div className="space-y-1.5">

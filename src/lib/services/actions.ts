@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
@@ -90,6 +90,9 @@ export async function saveServiceAction(
     heldOn,
     startsAt,
     backgroundSrc: value(formData, "backgroundSrc") || null,
+    screenAspect: ASPECTS.includes(value(formData, "screenAspect"))
+      ? value(formData, "screenAspect")
+      : "16:9",
     notes: value(formData, "notes"),
   };
 
@@ -115,6 +118,9 @@ export async function saveServiceAction(
   revalidatePath(`/s/${tenant}`, "layout");
   redirect(`/admin/services/${slug}`);
 }
+
+/** The screen shapes worth offering; anything else is a typo. */
+const ASPECTS = ["16:9", "16:10", "4:3", "21:9"];
 
 const KINDS = [
   "song",
@@ -215,12 +221,23 @@ export async function createServiceForDateAction(formData: FormData): Promise<vo
     slug = `${heldOn}-${attempt}`;
   }
 
+  // The projector doesn't change between Sundays, so neither should this: a
+  // new plan starts with whatever the last one was set to.
+  const [previous] = await db
+    .select({ screenAspect: services.screenAspect, backgroundSrc: services.backgroundSrc })
+    .from(services)
+    .where(eq(services.churchId, church.id))
+    .orderBy(desc(services.heldOn))
+    .limit(1);
+
   await db.insert(services).values({
     churchId: church.id,
     slug,
     title,
     heldOn,
     startsAt: value(formData, "startsAt") || "10:00",
+    screenAspect: previous?.screenAspect ?? "16:9",
+    backgroundSrc: previous?.backgroundSrc ?? null,
   });
 
   revalidatePath(`/s/${tenant}`, "layout");

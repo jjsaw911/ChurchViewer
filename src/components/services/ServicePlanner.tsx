@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import MediaField from "@/components/admin/MediaField";
 import ActivitySlides from "@/components/services/ActivitySlides";
+import ScreenPreview from "@/components/services/ScreenPreview";
 import {
   addServiceItemAction,
   deleteServiceItemAction,
@@ -57,6 +58,8 @@ export type PlanItem = {
   attachment: Attachment | null;
   /** The linked song's recording, so a row can be listened to where it sits. */
   songAudioUrl: string | null;
+  /** What sits behind the words on the screen for this activity. */
+  backgroundUrl: string | null;
 };
 
 export const KINDS = [
@@ -128,6 +131,8 @@ type Resize = {
 type Shared = {
   tenant: string;
   serviceId: string;
+  /** The shape of the screen, so every preview is drawn as the room sees it. */
+  screenAspect: string;
   songOptions: { id: string; title: string }[];
   slideSources: SlideSource[];
   uploadsEnabled: boolean;
@@ -510,19 +515,29 @@ function ActivityBlock({
         >
           {item.kind}
         </span>
-        {/* The picture, if there is one, sits in the row itself — a thumbnail
-            says what a filename never does. */}
-        {item.attachment?.kind === "image" && item.attachment.url ? (
-          <button
-            type="button"
-            onClick={() => setPanel(panel === "media" ? "none" : "media")}
-            title="Show it bigger"
-            className="h-8 w-12 shrink-0 overflow-hidden rounded border border-stone-200 dark:border-stone-700"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={item.attachment.url} alt="" className="h-full w-full object-cover" />
-          </button>
-        ) : null}
+        {/* What the room will see, at the shape of the screen it goes on.
+            Clicking it opens the thing behind it — slides, or the clip. */}
+        <button
+          type="button"
+          onClick={() =>
+            setPanel(
+              panel !== "none" ? "none" : item.attachment?.kind === "video" ? "media" : "slides",
+            )
+          }
+        >
+          <ScreenPreview
+            aspect={shared.screenAspect}
+            slide={slides[0] ?? null}
+            slideCount={slides.length}
+            backgroundUrl={item.backgroundUrl}
+            picture={
+              slides.length === 0 && item.attachment?.kind === "image"
+                ? item.attachment.url
+                : null
+            }
+            video={item.attachment?.kind === "video" || item.attachment?.kind === "youtube"}
+          />
+        </button>
 
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</span>
 
@@ -881,6 +896,7 @@ export default function ServicePlanner({
   songOptions,
   slideSources,
   uploadsEnabled,
+  screenAspect,
 }: {
   tenant: string;
   serviceId: string;
@@ -889,6 +905,8 @@ export default function ServicePlanner({
   songOptions: { id: string; title: string }[];
   slideSources: SlideSource[];
   uploadsEnabled: boolean;
+  /** The shape of the screen this service goes on, like "16:9". */
+  screenAspect: string;
 }) {
   const router = useRouter();
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -974,6 +992,7 @@ export default function ServicePlanner({
   const shared: Shared = {
     tenant,
     serviceId,
+    screenAspect,
     songOptions,
     slideSources,
     uploadsEnabled,

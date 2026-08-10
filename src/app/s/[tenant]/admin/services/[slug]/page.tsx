@@ -31,7 +31,10 @@ export default async function ServicePlanPage({
   const service = await getService(church.id, slug);
   if (!service) notFound();
 
-  const items = await withAttachments(toPlanItems(await loadPlanItems(service.id)));
+  const items = await withAttachments(
+    toPlanItems(await loadPlanItems(service.id)),
+    service.backgroundSrc,
+  );
 
   const [songOptions, sources] = await Promise.all([
     db
@@ -103,6 +106,7 @@ export default async function ServicePlanPage({
             songOptions={songOptions}
             slideSources={sources}
             uploadsEnabled={env.storage.isConfigured}
+            screenAspect={service.screenAspect}
           />
         </section>
       </SplitPane>
@@ -119,6 +123,7 @@ export default async function ServicePlanPage({
               heldOn: service.heldOn,
               startsAt: service.startsAt,
               backgroundSrc: service.backgroundSrc,
+              screenAspect: service.screenAspect,
               notes: service.notes,
             }}
           />

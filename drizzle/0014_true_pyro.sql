@@ -1,0 +1,1 @@
+ALTER TABLE "services" ADD COLUMN "screen_aspect" text DEFAULT '16:9' NOT NULL;
