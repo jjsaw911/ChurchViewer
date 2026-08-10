@@ -5,15 +5,39 @@ to keep doing that when nothing else works.
 
 **A first version exists.** SwiftUI, one window, no Xcode project.
 
+## Installing it
+
+On this Mac, or any Mac with Xcode:
+
 ```sh
-./build.sh --release
-open ".build/arm64-apple-macosx/release/ChurchViewer Display.app"
+./install.command
 ```
 
-Then ⌘, for settings: paste the address of the output screen (from a plan, press
-**Run it**, then **Open the output screen**, and copy that window's address),
-choose which screen the projector is, and tick the box to fill it at launch.
-You'll be asked to sign in inside the app once; the session persists.
+It asks its questions in ordinary Mac dialogs — the address of the output
+screen, whether to fill the projector at launch, whether to open at startup —
+builds if it has to, installs to `/Applications`, and offers to open it.
+
+**For the Mac at the church, which almost certainly has no developer tools:**
+
+```sh
+./package.sh
+```
+
+That makes `ChurchViewer-Display.zip` — the built app, the installer, and a
+short note. AirDrop it over, unzip, double-click `install.command`. No Xcode, no
+source, no terminal on that machine.
+
+Scripted, for anyone who prefers it:
+
+```sh
+./install.command --quiet --url "https://…/screen" --fullscreen --login
+```
+
+## Using it
+
+Sign in inside the app once; the session persists. Then ⌘, and choose which
+screen the projector is — that list is live, which is why the installer doesn't
+ask for it.
 
 ⌘⇧F fills the chosen screen, ⌘⎋ leaves full screen, ⌘R reloads.
 
