@@ -34,7 +34,7 @@ async function main() {
     markTranscribing,
     MAX_ATTEMPTS,
   } = await import("@/lib/songs/queue");
-  const { runTranscription } = await import("@/lib/songs/service");
+  const { discardSourceVideo, runTranscription } = await import("@/lib/songs/service");
   const { extractAudio } = await import("@/lib/songs/extract");
   const { detectSongKey } = await import("@/lib/songs/analyse");
 
@@ -103,6 +103,21 @@ async function main() {
 
       const slides = await runTranscription(job);
       console.log(`✓ ${job.slug}: ${slides.length} slides in ${Math.round((Date.now() - started) / 1000)}s`);
+
+      // The video has now done everything it was kept for: there's audio taken
+      // from it and words taken from that. It's a hundred times the size of
+      // either, and nothing in this app plays it again.
+      try {
+        if (await discardSourceVideo(job.churchId, job.id)) {
+          console.log("  video deleted; the audio and slides are what's kept");
+        }
+      } catch (error) {
+        // Slides exist either way. A file left behind costs pennies; a job
+        // marked failed over it would cost them the words.
+        console.warn(
+          `  couldn't delete the video: ${error instanceof Error ? error.message : error}`,
+        );
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Transcription failed.";
       console.error(`✗ ${job.slug}: ${message}`);

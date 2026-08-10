@@ -4,12 +4,12 @@ import { and, eq, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { mediaAssets, songs } from "@/db/schema";
+import { songs } from "@/db/schema";
 import { requireChurchAccess } from "@/lib/admin/guard";
 import { parseClock } from "@/lib/format";
 import { displayFilename, kindFor, titleFromFilename } from "@/lib/media/service";
 import { enqueueSongWork } from "@/lib/songs/queue";
-import { createSong } from "@/lib/songs/service";
+import { createSong, discardSourceVideo } from "@/lib/songs/service";
 import { retimeSlides } from "@/lib/songs/slides";
 import { deleteObject, isGcsLocation } from "@/lib/storage";
 import { slugify } from "@/lib/tenant";
@@ -239,21 +239,17 @@ export async function deleteSongVideoAction(formData: FormData): Promise<void> {
 
   const slug = value(formData, "slug");
   const [song] = await db
-    .select({ id: songs.id, videoSrc: songs.videoSrc, audioSrc: songs.audioSrc })
+    .select({ id: songs.id })
     .from(songs)
     .where(and(eq(songs.churchId, church.id), eq(songs.slug, slug)))
     .limit(1);
 
-  // Without audio there'd be nothing left to transcribe from, which is a
-  // different and much worse operation than the one being asked for.
-  if (!song?.videoSrc || !song.audioSrc) redirect(`/admin/songs/${slug}`);
-
-  await db.update(songs).set({ videoSrc: null }).where(eq(songs.id, song.id));
-  await db
-    .delete(mediaAssets)
-    .where(and(eq(mediaAssets.churchId, church.id), eq(mediaAssets.location, song.videoSrc)));
-
-  if (isGcsLocation(song.videoSrc)) await deleteObject(song.videoSrc);
+  if (song) {
+    // Asked for by hand, so slides aren't required — somebody looking at a song
+    // that will never be transcribed can still want the space back. Audio still
+    // is: without it there'd be nothing left at all.
+    await discardSourceVideo(church.id, song.id, { requireSlides: false });
+  }
 
   revalidatePath(`/s/${tenant}`, "layout");
   redirect(`/admin/songs/${slug}`);

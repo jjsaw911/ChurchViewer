@@ -1,10 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { songs } from "@/db/schema";
+import { mediaAssets, songs } from "@/db/schema";
 import { transcribeAudio, tidySlides } from "@/lib/ai/openai";
 import { buildSlides, DEFAULT_SLIDE_OPTIONS } from "@/lib/songs/slides";
 import { rootUrl } from "@/lib/env";
-import { playbackUrl } from "@/lib/storage";
+import { deleteObject, isGcsLocation, playbackUrl } from "@/lib/storage";
 import { slugify } from "@/lib/tenant";
 import type { SlidePayload } from "@/lib/songs/types";
 
@@ -120,6 +120,49 @@ export async function createSong(input: {
     .returning();
 
   return created;
+}
+
+/**
+ * Throw away the video a song was made from.
+ *
+ * By default only once the work it existed for is done: there's audio, and
+ * there are slides. A video deleted before that leaves a song with nothing to
+ * extract and nothing to show.
+ *
+ * This is not undoable — the original is gone from the bucket — which is why it
+ * checks rather than trusts its caller. The trade is deliberate: a service
+ * video is a hundred times the size of the audio taken from it and is never
+ * watched again through this app, and a library that grows by a gigabyte a
+ * Sunday is a bill nobody signed up for.
+ */
+export async function discardSourceVideo(
+  churchId: string,
+  songId: string,
+  options: { requireSlides?: boolean } = {},
+): Promise<boolean> {
+  const requireSlides = options.requireSlides ?? true;
+
+  const [song] = await db
+    .select({
+      id: songs.id,
+      videoSrc: songs.videoSrc,
+      audioSrc: songs.audioSrc,
+      slides: songs.slides,
+    })
+    .from(songs)
+    .where(and(eq(songs.id, songId), eq(songs.churchId, churchId)))
+    .limit(1);
+
+  if (!song?.videoSrc || !song.audioSrc) return false;
+  if (requireSlides && song.slides.length === 0) return false;
+
+  await db.update(songs).set({ videoSrc: null }).where(eq(songs.id, song.id));
+  await db
+    .delete(mediaAssets)
+    .where(and(eq(mediaAssets.churchId, churchId), eq(mediaAssets.location, song.videoSrc)));
+
+  if (isGcsLocation(song.videoSrc)) await deleteObject(song.videoSrc);
+  return true;
 }
 
 /**
