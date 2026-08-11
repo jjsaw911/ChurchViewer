@@ -61,6 +61,18 @@ break if you treat this like a standard single-site CRUD app.
 - Prefer existing patterns in `src/app`, server actions, and route handlers over
   inventing older Next.js conventions from memory.
 
+## Sync across machines
+
+- This repo is edited from more than one computer. Before starting work, check
+  for remote updates first.
+- Start with `git fetch --all --prune`, then compare the current branch against
+  its upstream before making changes.
+- If the branch is behind, fast-forward or otherwise sync it before editing.
+- If the branch has diverged or there are unexpected local changes, stop and
+  surface that clearly instead of continuing on a stale checkout.
+- Before pushing, do one more fetch/review so work from another machine is not
+  overwritten by accident.
+
 ## Verification
 
 - Run `npm test` and `npm run lint` after meaningful code changes.
