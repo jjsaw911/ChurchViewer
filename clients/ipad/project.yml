@@ -33,10 +33,20 @@ targets:
         # It talks to one https server; no transport exceptions wanted.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
+    # Signing lives in Local.xcconfig, which build.sh writes and git ignores.
+    # It has to be a file rather than a setting typed into Xcode, because this
+    # project is regenerated from this spec on every build — anything set in the
+    # UI would be wiped the next time somebody ran the script.
+    configFiles:
+      Debug: Local.xcconfig
+      Release: Local.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.churchviewer.remote
+        PRODUCT_BUNDLE_IDENTIFIER: $(CV_BUNDLE_ID)
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: "1"
-        # Nothing is signed for the simulator; a real iPad needs a team here.
-        CODE_SIGNING_ALLOWED: NO
+        DEVELOPMENT_TEAM: $(CV_TEAM)
+        CODE_SIGN_STYLE: Automatic
+        # Only the simulator goes unsigned. A device needs a real signature,
+        # and disabling it here is what produced "no team found".
+        CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]: NO
