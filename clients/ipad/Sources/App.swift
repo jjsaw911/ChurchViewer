@@ -25,6 +25,8 @@ private struct RemoteView: View {
     @ObservedObject var settings: Settings
 
     @State private var webView: WKWebView?
+    /// Where the app has been sent since it opened; nil means the stored address.
+    @State private var current: URL?
     @State private var reloadToken = 0
     @State private var showingSettings = false
 
@@ -32,11 +34,18 @@ private struct RemoteView: View {
         Group {
             if let url = settings.url {
                 VStack(spacing: 0) {
-                    RunSheetWebView(url: url, reloadToken: reloadToken) { webView = $0 }
+                    RunSheetWebView(url: current ?? url, reloadToken: reloadToken) { webView = $0 }
                     ControlBar(
                         onBack: { PageKeys.press("ArrowLeft", in: webView) },
                         onNext: { PageKeys.press("ArrowRight", in: webView) },
                         onBlank: { PageKeys.press("b", in: webView) },
+                        onPlans: {
+                            // Somewhere to get back to. Without it, moving from
+                            // last Sunday's service to this one means retyping
+                            // an address into settings.
+                            current = settings.plansURL
+                            reloadToken += 1
+                        },
                         onSettings: { showingSettings = true }
                     )
                 }
@@ -66,6 +75,7 @@ private struct ControlBar: View {
     let onBack: () -> Void
     let onNext: () -> Void
     let onBlank: () -> Void
+    let onPlans: () -> Void
     let onSettings: () -> Void
 
     @Environment(\.horizontalSizeClass) private var width
@@ -74,12 +84,21 @@ private struct ControlBar: View {
 
     var body: some View {
         HStack(spacing: narrow ? 8 : 12) {
-            Button(action: onSettings) {
-                Image(systemName: "gearshape.fill")
-                    .font(.title2)
-                    .frame(width: narrow ? 48 : 60, height: 68)
+            Button(action: onPlans) {
+                Image(systemName: "list.bullet.rectangle")
+                    .font(.title3)
+                    .frame(width: narrow ? 44 : 56, height: 68)
             }
             .buttonStyle(.bordered)
+            .accessibilityLabel("All plans")
+
+            Button(action: onSettings) {
+                Image(systemName: "gearshape.fill")
+                    .font(.title3)
+                    .frame(width: narrow ? 44 : 56, height: 68)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("Settings")
 
             // Back is deliberately the smaller of the two. Next is pressed ten
             // times as often, and hitting the wrong one mid-verse is the
@@ -137,22 +156,22 @@ private struct SetupView: View {
             Text("ChurchViewer Remote").font(.largeTitle.weight(.semibold))
 
             Text(
-                "Open the service plan in a browser, press Run it, and copy that page's "
-                + "address — the run sheet, not the output screen."
+                "Your church's address. It opens on the list of plans, and you'll be asked "
+                + "to sign in once."
             )
             .font(.body)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
             .frame(maxWidth: 520)
 
-            TextField("https://yourchurch.churchviewer.com/present/services/…", text: $typed)
+            TextField("yourchurch.churchviewer.com", text: $typed)
                 .textFieldStyle(.roundedBorder)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .keyboardType(.URL)
                 .frame(maxWidth: 520)
 
-            Button("Use this run sheet") {
+            Button("Connect") {
                 settings.runSheetURL = typed.trimmingCharacters(in: .whitespacesAndNewlines)
             }
             .buttonStyle(.borderedProminent)

@@ -13,8 +13,8 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Run sheet address") {
-                    TextField("https://…/present/services/…", text: $typed)
+                Section("Church address") {
+                    TextField("yourchurch.churchviewer.com", text: $typed)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
@@ -26,8 +26,8 @@ struct SettingsView: View {
                     }
 
                     Text(
-                        "From a plan, press Run it and copy that page's address. This is the "
-                        + "page you drive from — not the output screen the projector shows."
+                        "Just the address opens the list of plans. Paste a run sheet address "
+                        + "instead to go straight to one service."
                     )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
