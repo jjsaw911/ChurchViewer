@@ -13,7 +13,7 @@ targets:
   ChurchViewerRemote:
     type: application
     platform: iOS
-    sources: [Sources]
+    sources: [Sources, Assets.xcassets]
     info:
       path: Info.plist
       properties:
@@ -47,6 +47,7 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         DEVELOPMENT_TEAM: $(CV_TEAM)
         CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Only the simulator goes unsigned. A device needs a real signature,
         # and disabling it here is what produced "no team found".
         CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]: NO
