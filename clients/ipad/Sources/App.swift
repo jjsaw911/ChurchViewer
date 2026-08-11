@@ -57,18 +57,27 @@ private struct RemoteView: View {
 /// above is being scrolled, they must not move when it does, and they have to
 /// be hittable without looking — this gets used one-handed, in a dark room, by
 /// somebody also watching a band.
+///
+/// On a phone the same four buttons have about a hundred points less to live
+/// in, so the words come off Back and Blank rather than the buttons shrinking:
+/// a smaller target is worse than an unlabelled one when nobody is looking at
+/// their hands anyway.
 private struct ControlBar: View {
     let onBack: () -> Void
     let onNext: () -> Void
     let onBlank: () -> Void
     let onSettings: () -> Void
 
+    @Environment(\.horizontalSizeClass) private var width
+
+    private var narrow: Bool { width == .compact }
+
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: narrow ? 8 : 12) {
             Button(action: onSettings) {
                 Image(systemName: "gearshape.fill")
                     .font(.title2)
-                    .frame(width: 60, height: 72)
+                    .frame(width: narrow ? 48 : 60, height: 68)
             }
             .buttonStyle(.bordered)
 
@@ -77,31 +86,40 @@ private struct ControlBar: View {
             // mistake worth designing against — so Next gets whatever room is
             // left, and it's always the bigger target.
             Button(action: onBack) {
-                Label("Back", systemImage: "chevron.left")
-                    .font(.title3.weight(.semibold))
-                    .frame(width: 150, height: 72)
+                label("Back", "chevron.left", .title3)
+                    .frame(width: narrow ? 62 : 150, height: 68)
             }
             .buttonStyle(.borderedProminent)
             .tint(.gray)
+            .accessibilityLabel("Back")
 
             Button(action: onNext) {
-                Label("Next", systemImage: "chevron.right")
-                    .font(.title.weight(.bold))
-                    .frame(maxWidth: .infinity, minHeight: 72)
+                label("Next", "chevron.right", .title)
+                    .frame(maxWidth: .infinity, minHeight: 68)
             }
             .buttonStyle(.borderedProminent)
+            .accessibilityLabel("Next")
 
             Button(action: onBlank) {
-                Label("Blank", systemImage: "rectangle.slash")
-                    .font(.title3.weight(.semibold))
-                    .frame(width: 140, height: 72)
+                label("Blank", "rectangle.slash", .title3)
+                    .frame(width: narrow ? 62 : 140, height: 68)
             }
             .buttonStyle(.bordered)
             .tint(.red)
+            .accessibilityLabel("Blank the screen")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, narrow ? 10 : 16)
+        .padding(.vertical, narrow ? 8 : 12)
         .background(.bar)
+    }
+
+    @ViewBuilder
+    private func label(_ text: String, _ symbol: String, _ font: Font) -> some View {
+        if narrow {
+            Image(systemName: symbol).font(font.weight(.bold))
+        } else {
+            Label(text, systemImage: symbol).font(font.weight(.semibold))
+        }
     }
 }
 

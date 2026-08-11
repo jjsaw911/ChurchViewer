@@ -19,6 +19,12 @@ targets:
       properties:
         CFBundleDisplayName: ChurchViewer
         UILaunchScreen: {}
+        # A phone is held whichever way the person is standing; a tablet on a
+        # music stand is usually landscape. Both, on both.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
