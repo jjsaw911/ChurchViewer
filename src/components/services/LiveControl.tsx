@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { OperatorLights } from "@/components/services/LinkLights";
 import ScreenPreview from "@/components/services/ScreenPreview";
 import { publishLive, useLiveState, usePresence } from "@/lib/services/live";
@@ -29,13 +29,18 @@ function useSecondScreens(): boolean {
 }
 
 /**
- * The operator's screen: the day as a row of boxes, and what the room sees.
+ * The operator's screen: the day as a column of boxes, one of them alive.
  *
- * The shape of a service is one thing after another, so that's the shape of
- * this. Tap a box and it goes on the screen. Next walks its slides. When they
- * run out the following box arms itself — chosen, visible here, not yet in
- * front of anybody — because the gap between two items is exactly when somebody
- * needs to see what's coming without the room seeing it too.
+ * A service is one thing after another, so that is the shape of this. Whatever
+ * is on the screen is the box you can read at arm's length — the actual screen
+ * inside it, at the actual shape of the screen — and everything else steps back
+ * to a dimmed line until its turn. There is no separate preview panel, because
+ * the box *is* the preview, and two of them would only disagree.
+ *
+ * Tapping a box chooses it; the box then asks before it goes anywhere. That
+ * second press is deliberate: putting something up cannot be undone once the
+ * room has seen it, and this is held one-handed, in the dark, by somebody who
+ * is also listening for their cue.
  *
  * Nothing here plays audio. A song's recording plays on the machine at the
  * projector, where the sound system is; Start is an instruction sent to it.
@@ -57,6 +62,27 @@ export default function LiveControl({
   const presence = usePresence(serviceId, "control");
   const secondScreens = useSecondScreens();
 
+  /**
+   * The box somebody has tapped but not yet committed to.
+   *
+   * Jumping is the one action here that can't be walked back: the room has
+   * already seen it, and a song has already started. A remote lives in a
+   * pocket, gets handed across a row of seats, and is held one-handed in the
+   * dark — so the first tap only chooses, and the box then asks. Nothing else
+   * needs this. Next and Back move within what is already on the screen, and
+   * that is what they are pressed a hundred times a morning to do.
+   */
+  const [pending, setPending] = useState<string | null>(null);
+
+  // A choice nobody confirmed is a choice nobody made. Without this it sits
+  // there until the next tap, and the tap after that is the one that lands on
+  // a "yes" for something chosen ten minutes ago.
+  useEffect(() => {
+    if (!pending) return;
+    const timer = setTimeout(() => setPending(null), 10_000);
+    return () => clearTimeout(timer);
+  }, [pending]);
+
   const liveItem = items.find((item) => item.id === state.itemId) ?? null;
   const armedItem = items.find((item) => item.id === state.armedItemId) ?? null;
 
@@ -66,14 +92,14 @@ export default function LiveControl({
     item.attachment?.kind === "image" ||
     Boolean(item.attachment?.kind === "video" && item.attachment.url);
 
-  /** A film with the screen to itself — Start runs it, the same as a song. */
-  const film =
-    liveItem &&
-    liveItem.slides.length === 0 &&
-    liveItem.attachment?.kind === "video" &&
-    liveItem.attachment.url
-      ? liveItem
+  /** A film with the screen to itself — Play runs it, the same as a song. */
+  const film = (item: PresentItem) =>
+    item.slides.length === 0 && item.attachment?.kind === "video" && item.attachment.url
+      ? item.attachment.url
       : null;
+
+  /** Whether there's a recording the machine at the projector can run. */
+  const plays = (item: PresentItem) => item.followable || Boolean(film(item));
 
   /** The next thing worth arming after this one. */
   const after = useCallback(
@@ -118,6 +144,37 @@ export default function LiveControl({
       }),
     [after, publish],
   );
+
+  /**
+   * Tap a box: it goes on the screen, and if it carries a recording that
+   * starts too.
+   *
+   * One press for the whole thing, because that is what the press means — the
+   * box is the item, and putting a song up without starting it is a thing
+   * nobody wanted to do. The Stop and the slide controls are right there in the
+   * box afterwards for the times it needs correcting.
+   */
+  const activate = useCallback(
+    (item: PresentItem) =>
+      publish({
+        itemId: item.id,
+        slideIndex: 0,
+        blank: false,
+        playing: plays(item),
+        armedItemId: after(item.id),
+      }),
+    // `plays` and `after` are recomputed from `items` each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [after, items, publish],
+  );
+
+  /** A second window, on the machine that has somewhere to put one. */
+  const openWindow = (surface: "screen" | "stage") =>
+    window.open(
+      `/present/services/${slug}/${surface}`,
+      `churchviewer-${surface}-${serviceId}`,
+      "width=1280,height=720",
+    );
 
   /**
    * Step a slide, and off the end of an item into the next one.
@@ -185,172 +242,161 @@ export default function LiveControl({
     ? null
     : (liveItem?.slides[Math.min(state.slideIndex, liveItem.slides.length - 1)] ?? null);
 
+
   return (
-    <div className="space-y-5">
-      {/* What the room is seeing, right now, at the shape of the screen. */}
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="w-56 shrink-0">
-          <ScreenPreview
-            size="full"
-            aspect={screenAspect}
-            slide={onScreen}
-            slideCount={liveItem?.slides.length ?? 0}
-            backgroundUrl={state.blank ? null : (liveItem?.backgroundUrl ?? null)}
-            picture={
-              !state.blank && !onScreen && liveItem?.attachment?.kind === "image"
-                ? liveItem.attachment.url
-                : null
-            }
-            video={liveItem?.attachment?.kind === "video"}
-          />
-        </div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Before anything else on the page: whether there is anything on the
+            other end of all this. */}
+        <OperatorLights presence={presence} />
 
-        <div className="min-w-0 flex-1 space-y-2">
-          {/* Before anything else on the page: whether there is anything on
-              the other end of all this. */}
-          <OperatorLights presence={presence} />
-
-          <p className="text-sm text-stone-500">
-            {state.blank
-              ? "Screen is blank"
-              : liveItem
-                ? `On screen · ${liveItem.title}${
-                    liveItem.slides.length
-                      ? ` · ${state.slideIndex + 1} of ${liveItem.slides.length}`
-                      : ""
-                  }`
-                : "Nothing on the screen"}
-          </p>
-
-          {armedItem ? (
-            <p className="text-sm">
-              <span className="text-stone-500">Next up: </span>
-              <span className="font-medium">{armedItem.title}</span>
-              {atEnd ? (
-                <button
-                  type="button"
-                  onClick={() => show(armedItem.id)}
-                  className="ml-3 rounded-lg bg-amber-700 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-800"
-                >
-                  Put it up
-                </button>
-              ) : null}
-            </p>
-          ) : null}
-
-          <div className="flex flex-wrap gap-2 pt-1">
+        {/* Second windows belong on the machine wired to the projector. On the
+            phone in somebody's hand, these would put the congregation's screen
+            on the phone and nowhere else. */}
+        {secondScreens ? (
+          <div className="flex gap-2 text-xs">
             <button
               type="button"
-              onClick={() => step(-1)}
-              className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
+              onClick={() => openWindow("screen")}
+              className="rounded-lg border border-stone-300 px-3 py-1.5 font-medium hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
             >
-              &larr; Back
+              Output window
             </button>
             <button
               type="button"
-              onClick={() => step(1)}
-              // Only genuinely dead at the very end of the day, with nothing
-              // armed behind it.
-              disabled={atEnd && !armedItem}
-              className="rounded-lg bg-amber-700 px-5 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-40"
+              onClick={() => openWindow("stage")}
+              className="rounded-lg border border-stone-300 px-3 py-1.5 font-medium hover:bg-stone-700/10 dark:border-stone-700 dark:hover:bg-stone-800"
             >
-              {atEnd && armedItem ? `Next: ${armedItem.title}` : "Next"} &rarr;
+              Stage display
             </button>
-
-            {/* Sound comes out of the machine at the projector. This is the
-                instruction to start it, not a player. */}
-            {liveItem?.followable || film ? (
-              <button
-                type="button"
-                onClick={() => publish({ playing: !state.playing })}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold ${
-                  state.playing
-                    ? "bg-stone-800 text-white dark:bg-stone-200 dark:text-stone-900"
-                    : "bg-emerald-700 text-white hover:bg-emerald-800"
-                }`}
-              >
-                {state.playing ? "Stop" : film ? "Play the video" : "Start the music"}
-              </button>
-            ) : liveItem?.offsiteRecordingOnly ? (
-              <span className="self-center text-xs text-stone-500">
-                Timed to a recording that isn&rsquo;t on the church machine &mdash; move these
-                slides by hand.
-              </span>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={() => publish({ blank: !state.blank })}
-              className={`rounded-lg border px-4 py-2 text-sm font-medium ${
-                state.blank
-                  ? "border-red-400 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
-                  : "border-stone-300 hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
-              }`}
-            >
-              {state.blank ? "Screen is blank" : "Blank"}
-            </button>
-
-            {/* Second windows belong on the machine wired to the projector. On
-                the phone in somebody's hand, "Output window" would put the
-                congregation's screen on the phone and nowhere else. */}
-            {secondScreens ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() =>
-                    window.open(
-                      `/present/services/${slug}/screen`,
-                      `churchviewer-output-${serviceId}`,
-                      "width=1280,height=720",
-                    )
-                  }
-                  className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
-                >
-                  Output window
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    window.open(
-                      `/present/services/${slug}/stage`,
-                      `churchviewer-stage-${serviceId}`,
-                      "width=1280,height=720",
-                    )
-                  }
-                  className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
-                >
-                  Stage display
-                </button>
-              </>
-            ) : null}
           </div>
-        </div>
+        ) : null}
       </div>
 
-      {/* The day, in order. */}
+      {/* The day, top to bottom. Whatever is on the screen is the one box you
+          can read from arm's length; everything else steps back out of the way
+          until its turn. */}
       <ol className="space-y-2">
         {items.map((item) => {
           const isLive = item.id === state.itemId;
           const isArmed = item.id === state.armedItemId;
+          const canShow = showable(item);
+
+          if (isLive) {
+            return (
+              <li key={item.id}>
+                <div className="rounded-2xl border-2 border-amber-500 bg-amber-50/70 p-3 shadow-lg dark:bg-amber-950/30">
+                  <div className="flex items-baseline gap-2 pb-2">
+                    <span className="font-mono text-xs text-amber-700 dark:text-amber-500">
+                      {item.startsAt}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-semibold">{item.title}</span>
+                    <span className="shrink-0 text-xs text-stone-500">
+                      {state.blank
+                        ? "blank"
+                        : item.slides.length
+                          ? `${Math.min(state.slideIndex + 1, item.slides.length)} of ${item.slides.length}`
+                          : "on screen"}
+                    </span>
+                  </div>
+
+                  {/* Exactly what the room is seeing, at the shape of the
+                      actual screen — big enough to read a lyric off. */}
+                  <ScreenPreview
+                    size="full"
+                    aspect={screenAspect}
+                    slide={onScreen}
+                    slideCount={item.slides.length}
+                    backgroundUrl={state.blank ? null : item.backgroundUrl}
+                    picture={
+                      !state.blank && !onScreen && item.attachment?.kind === "image"
+                        ? item.attachment.url
+                        : null
+                    }
+                    video={item.attachment?.kind === "video"}
+                  />
+
+                  <div className="flex flex-wrap gap-2 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => step(-1)}
+                      className="rounded-xl border border-stone-300 px-4 py-3 text-sm font-medium hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
+                    >
+                      &larr; Back
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => step(1)}
+                      // Only genuinely dead at the very end of the day, with
+                      // nothing armed behind it.
+                      disabled={atEnd && !armedItem}
+                      className="min-w-32 flex-1 rounded-xl bg-amber-700 px-5 py-3 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-40"
+                    >
+                      {atEnd && armedItem ? `Next: ${armedItem.title}` : "Next"} &rarr;
+                    </button>
+
+                    {/* The sound comes out of the machine at the projector.
+                        This is the instruction to it, not a player. */}
+                    {plays(item) ? (
+                      <button
+                        type="button"
+                        onClick={() => publish({ playing: !state.playing })}
+                        className={`rounded-xl px-4 py-3 text-sm font-semibold ${
+                          state.playing
+                            ? "bg-stone-800 text-white dark:bg-stone-200 dark:text-stone-900"
+                            : "bg-emerald-700 text-white hover:bg-emerald-800"
+                        }`}
+                      >
+                        {state.playing ? "Stop" : film(item) ? "Play" : "Start"}
+                      </button>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => publish({ blank: !state.blank })}
+                      className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+                        state.blank
+                          ? "border-red-400 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                          : "border-stone-300 hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
+                      }`}
+                    >
+                      {state.blank ? "Blanked" : "Blank"}
+                    </button>
+                  </div>
+
+                  {item.offsiteRecordingOnly ? (
+                    <p className="pt-2 text-xs text-stone-500">
+                      Timed to a recording that isn&rsquo;t on the church machine &mdash; move
+                      these slides by hand.
+                    </p>
+                  ) : null}
+                </div>
+              </li>
+            );
+          }
+
+          const isPending = pending === item.id;
 
           return (
             <li key={item.id}>
+             <div
+              className={`rounded-xl border transition ${item.depth > 0 ? "ml-6" : ""} ${
+                isPending
+                  ? "border-amber-500 opacity-100 shadow"
+                  : isArmed
+                    ? "border-emerald-500 opacity-100"
+                    : "border-stone-200 opacity-55 hover:opacity-100 dark:border-stone-800"
+              } ${canShow ? "" : "opacity-40"}`}
+             >
               <button
                 type="button"
-                onClick={() => showable(item) && show(item.id)}
-                disabled={!showable(item)}
-                className={`flex w-full items-center gap-3 rounded-xl border p-2 text-left ${
-                  item.depth > 0 ? "ml-6" : ""
-                } ${
-                  isLive
-                    ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30"
-                    : isArmed
-                      ? "border-emerald-500"
-                      : "border-stone-200 dark:border-stone-800"
-                } ${showable(item) ? "hover:border-amber-400" : "opacity-60"}`}
+                // The first tap only chooses. See `pending`.
+                onClick={() => canShow && setPending(isPending ? null : item.id)}
+                disabled={!canShow}
+                className="flex w-full items-center gap-3 p-2 text-left"
               >
-                <span className="w-14 shrink-0 font-mono text-xs text-amber-700 dark:text-amber-500">
+                <span className="w-12 shrink-0 font-mono text-[0.7rem] text-amber-700 dark:text-amber-500">
                   {item.startsAt}
                 </span>
 
@@ -365,20 +411,19 @@ export default function LiveControl({
                       : null
                   }
                   video={item.attachment?.kind === "video"}
-                  className="w-20"
+                  className="w-16"
                 />
 
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{item.title}</span>
+                  <span className="block truncate text-sm font-medium">{item.title}</span>
                   <span className="block truncate text-xs text-stone-500">
                     {[
-                      item.kind,
                       item.musicalKey ? `key of ${item.musicalKey}` : "",
-                      item.followable ? "has a recording" : "",
+                      plays(item) ? "plays on tap" : "",
                       item.offsiteRecordingOnly ? "recording is a link only" : "",
                       // Why the box is greyed out, said on the box. Finding
                       // this out on the day is finding it out too late.
-                      showable(item) ? "" : "nothing to show yet",
+                      canShow ? "" : "nothing to show yet",
                       `${item.minutes} min`,
                     ]
                       .filter(Boolean)
@@ -386,21 +431,44 @@ export default function LiveControl({
                   </span>
                 </span>
 
-                <span className="shrink-0 text-xs font-medium">
-                  {isLive ? (
-                    <span className="text-amber-700 dark:text-amber-500">on screen</span>
-                  ) : isArmed ? (
-                    <span className="text-emerald-700 dark:text-emerald-500">next</span>
-                  ) : null}
-                </span>
+                {isArmed && !isPending ? (
+                  <span className="shrink-0 text-xs font-medium text-emerald-700 dark:text-emerald-500">
+                    next
+                  </span>
+                ) : null}
               </button>
+
+              {/* Asked, rather than assumed. The wording says what will happen
+                  to the room, including the music. */}
+              {isPending ? (
+                <div className="flex gap-2 p-2 pt-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPending(null);
+                      activate(item);
+                    }}
+                    className="flex-1 rounded-lg bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-800"
+                  >
+                    {plays(item) ? "Put it up and start" : "Put it up"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPending(null)}
+                    className="rounded-lg border border-stone-300 px-4 py-2.5 text-sm font-medium hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : null}
+             </div>
             </li>
           );
         })}
       </ol>
 
       <p className="text-xs text-stone-500">
-        {serviceTitle} · arrows or space to move · B blanks the screen
+        {serviceTitle} · tap a box, then confirm · arrows or space move the slides · B blanks
       </p>
     </div>
   );
