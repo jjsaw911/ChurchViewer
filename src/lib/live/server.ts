@@ -95,6 +95,18 @@ export function watchPlayback(
   return () => bus.off(playbackChannel(serviceId), onReport);
 }
 
+/** Ask every screen on this service to load itself again. Not persisted. */
+const reloadChannel = (serviceId: string) => `reload:${serviceId}`;
+
+export function askReload(serviceId: string): void {
+  bus.emit(reloadChannel(serviceId));
+}
+
+export function watchReload(serviceId: string, onAsk: () => void): () => void {
+  bus.on(reloadChannel(serviceId), onAsk);
+  return () => bus.off(reloadChannel(serviceId), onAsk);
+}
+
 /** Listen for changes to one service. Returns the unsubscribe. */
 export function watchLiveState(
   serviceId: string,

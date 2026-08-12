@@ -131,7 +131,16 @@ export type DisplayMessage =
   /** Somebody joined or left. Sent to everyone, including the one who did. */
   | { type: "presence"; presence: Presence; serviceId: string }
   /** The projector, saying where it has actually got to. Not persisted. */
-  | { type: "playback"; playback: Playback; serviceId: string };
+  | { type: "playback"; playback: Playback; serviceId: string }
+  /**
+   * Start the screen again from scratch.
+   *
+   * The last resort, asked for from the remote: a browser that has lost its
+   * audio device, or a page left running since a deploy. It is the one repair
+   * that fixes nearly everything and the one nobody can perform, because the
+   * machine it has to happen on is across the room behind a projector.
+   */
+  | { type: "reload"; serviceId: string };
 
 export type Envelope<T> = {
   version: number;

@@ -105,6 +105,30 @@ function usePlayback(serviceId: string, state: LiveState, item: PresentItem | nu
 
     const timer = setInterval(follow, 250);
 
+    // A pause nobody asked for.
+    //
+    // Headphones paired to this Mac wander off to somebody's phone, and macOS
+    // takes the output device with them; the element stops dead and says
+    // nothing. From the operator's side the song simply stopped, with the
+    // button still claiming it was running. So it is picked up again — the
+    // sound comes back on whatever device the machine fell back to — and if it
+    // will not restart, the instruction is put back so Start works.
+    let stopping = false;
+    const onPause = () => {
+      if (stopping || element.ended || !latest.current.playing) return;
+
+      void element.play().catch(() => {
+        started.current = false;
+        publishLive(serviceId, { playing: false });
+      });
+    };
+    element.addEventListener("pause", onPause);
+
+    // The end of the song is not a fault, and the instruction should not be
+    // left standing after it.
+    const onEnded = () => publishLive(serviceId, { playing: false });
+    element.addEventListener("ended", onEnded);
+
     // Autoplay is refused until a window has been interacted with. The Mac app
     // allows it outright; a browser window needs one click first — and if it is
     // refused, the flag goes back so the operator can see it didn't take.
@@ -114,7 +138,12 @@ function usePlayback(serviceId: string, state: LiveState, item: PresentItem | nu
     });
 
     return () => {
+      // Set first: pausing below would otherwise look like the device
+      // disappearing, and the song would pick itself back up.
+      stopping = true;
       clearInterval(timer);
+      element.removeEventListener("pause", onPause);
+      element.removeEventListener("ended", onEnded);
       element.pause();
       audio.current = null;
     };

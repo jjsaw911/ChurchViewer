@@ -5,7 +5,13 @@ import { OperatorLights } from "@/components/services/LinkLights";
 import { useStayAwake } from "@/lib/services/awake";
 import { useNativeStatus } from "@/lib/services/native";
 import ScreenPreview from "@/components/services/ScreenPreview";
-import { publishLive, useHeardPlayback, useLiveState, usePresence } from "@/lib/services/live";
+import {
+  askScreensToReload,
+  publishLive,
+  useHeardPlayback,
+  useLiveState,
+  usePresence,
+} from "@/lib/services/live";
 import type { LiveState } from "@/lib/live/protocol";
 import type { PresentItem } from "@/lib/services/present";
 
@@ -439,11 +445,22 @@ export default function LiveControl({
                         // Asked for, and nothing has answered. Said plainly,
                         // because the alternative is an operator standing there
                         // believing a song is running.
-                        <p className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-200">
-                          {presence.display === 0
-                            ? "No screen is connected, so nothing is playing. Open the display on the church computer."
-                            : "Waiting for the screen to start it…"}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-200">
+                          <span className="min-w-0 flex-1">
+                            {presence.display === 0
+                              ? "No screen is connected, so nothing is playing. Open the display on the church computer."
+                              : "The screen hasn't started it. Press Start again, or reload the screen."}
+                          </span>
+                          {presence.display > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => askScreensToReload(serviceId)}
+                              className="shrink-0 rounded-md bg-amber-900 px-2.5 py-1 font-semibold text-white hover:bg-amber-950 dark:bg-amber-200 dark:text-amber-950"
+                            >
+                              Reload the screen
+                            </button>
+                          ) : null}
+                        </div>
                       )}
                     </div>
                   ) : null}

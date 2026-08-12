@@ -179,6 +179,47 @@ function acceptPlayback(serviceId: string, playback: Playback): void {
 }
 
 /**
+ * Open the stream, and hand what comes down it to whoever wants it.
+ *
+ * EventSource reconnects by itself, which is the whole reason for it: a
+ * projector that dropped its wifi for ten seconds must come back without
+ * anybody noticing. It cannot recover from a connection the operating system
+ * closed while the app was in the background, though, which is why this can be
+ * called again.
+ */
+function connect(serviceId: string, role: DeviceRole, entry: Entry): void {
+  entry.source?.close();
+
+  const source = new EventSource(`/api/live/${serviceId}/stream?role=${role}`);
+  source.onopen = () => flush(serviceId);
+  source.onmessage = (event) => {
+    try {
+      const parsed = JSON.parse(event.data) as Envelope<DisplayMessage>;
+      if (!isUnderstood(parsed)) return;
+
+      if (parsed.message.type === "state") accept(serviceId, parsed.message.state);
+      else if (parsed.message.type === "presence") {
+        acceptPresence(serviceId, parsed.message.presence);
+      } else if (parsed.message.type === "playback") {
+        acceptPlayback(serviceId, parsed.message.playback);
+      } else if (parsed.message.type === "reload" && role === "display") {
+        // Only screens. A remote reloading itself mid-service would take the
+        // controls away from the person holding it.
+        window.location.reload();
+      }
+    } catch {
+      // A malformed frame is not worth taking the screen down for.
+    }
+  };
+  // Our own connection has dropped, so we no longer know who is out there.
+  // Saying nobody is honest; leaving the dots green would be a light that
+  // means "it was fine when we last looked".
+  source.onerror = () => acceptPresence(serviceId, NOBODY);
+
+  entry.source = source;
+}
+
+/**
  * Take a new roll-call.
  *
  * Same identity rule as the state: an unchanged count has to keep the object it
@@ -223,39 +264,30 @@ function useChannel(
       };
       window.addEventListener("storage", onStorage);
 
+      // An app that was put down and picked up again, or a tab that spent the
+      // announcements behind something else: the connection was very likely
+      // killed while nobody was looking, and EventSource cannot reconnect one
+      // the operating system closed underneath it. Coming back is when to
+      // check, and reconnecting is what re-syncs everything — the server sends
+      // the current state to whoever has just arrived.
+      const onVisible = () => {
+        if (document.visibilityState !== "visible") return;
+        if (entry.source && entry.source.readyState !== EventSource.CLOSED) return;
+        connect(serviceId, role, entry);
+      };
+      document.addEventListener("visibilitychange", onVisible);
+
       if (first) {
         // What this browser last knew, before the network is asked anything.
         const stored = parse(window.localStorage.getItem(storageKey(serviceId)));
         if (stored) accept(serviceId, stored);
 
-        // EventSource reconnects by itself, which is the whole reason for it:
-        // a projector that dropped its wifi for ten seconds must come back
-        // without anybody noticing.
-        const source = new EventSource(`/api/live/${serviceId}/stream?role=${role}`);
-        source.onopen = () => flush(serviceId);
-        source.onmessage = (event) => {
-          try {
-            const parsed = JSON.parse(event.data) as Envelope<DisplayMessage>;
-            if (!isUnderstood(parsed)) return;
-            if (parsed.message.type === "state") accept(serviceId, parsed.message.state);
-            else if (parsed.message.type === "presence") {
-              acceptPresence(serviceId, parsed.message.presence);
-            } else if (parsed.message.type === "playback") {
-              acceptPlayback(serviceId, parsed.message.playback);
-            }
-          } catch {
-            // A malformed frame is not worth taking the screen down for.
-          }
-        };
-        // Our own connection has dropped, so we no longer know who is out
-        // there. Saying nobody is honest; leaving the dots green would be a
-        // light that means "it was fine when we last looked".
-        source.onerror = () => acceptPresence(serviceId, NOBODY);
-        entry.source = source;
+        connect(serviceId, role, entry);
       }
 
       return () => {
         window.removeEventListener("storage", onStorage);
+        document.removeEventListener("visibilitychange", onVisible);
         entry.listeners.delete(onChange);
 
         if (entry.listeners.size === 0) {
@@ -290,6 +322,13 @@ export function reportPlayback(serviceId: string, playback: Playback): void {
     keepalive: true,
   }).catch(() => {
     // Missing one of these means a progress bar stutters. Nothing more.
+  });
+}
+
+/** Ask the screens on this service to load themselves again. */
+export function askScreensToReload(serviceId: string): void {
+  void fetch(`/api/live/${serviceId}/reload`, { method: "POST", keepalive: true }).catch(() => {
+    // Nothing sensible to do; the button can be pressed again.
   });
 }
 

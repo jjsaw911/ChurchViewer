@@ -5,6 +5,7 @@ import {
   readLiveState,
   watchLiveState,
   watchPlayback,
+  watchReload,
 } from "@/lib/live/server";
 import { envelope, type DeviceRole, type DisplayMessage } from "@/lib/live/protocol";
 
@@ -79,6 +80,8 @@ export async function GET(
         send({ type: "playback", playback, serviceId }),
       );
 
+      const unwatchReload = watchReload(serviceId, () => send({ type: "reload", serviceId }));
+
       const keepalive = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(": keepalive\n\n"));
@@ -92,6 +95,7 @@ export async function GET(
         unwatch();
         unwatchPresence();
         unwatchPlayback();
+        unwatchReload();
         leave();
         try {
           controller.close();

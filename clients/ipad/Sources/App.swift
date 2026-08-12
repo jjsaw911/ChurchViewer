@@ -30,6 +30,7 @@ private struct RemoteView: View {
     @State private var reloadToken = 0
     @State private var showingSettings = false
     @State private var status = LiveStatus()
+    @Environment(\.scenePhase) private var phase
 
     var body: some View {
         Group {
@@ -64,6 +65,17 @@ private struct RemoteView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView(settings: settings, onReload: { reloadToken += 1 })
+        }
+        // Picked up again after being put down.
+        //
+        // An app in the background has its connections closed under it by iOS,
+        // and the page has no way to notice — so it comes back showing whatever
+        // was true when it was put down, which during a service is a remote
+        // quietly describing the wrong song. Loading it again asks the server
+        // what is actually on the screen, which is the only thing worth
+        // trusting.
+        .onChange(of: phase) { _, now in
+            if now == .active { reloadToken += 1 }
         }
     }
 }
