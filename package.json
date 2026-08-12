@@ -11,7 +11,7 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "admin:create": "tsx src/scripts/create-admin.ts",
-    "test": "tsx --test src/lib/units.test.ts src/lib/songs/slides.test.ts src/lib/songs/extract.test.ts src/lib/songs/key.test.ts src/lib/services/plan.test.ts src/lib/live/presence.test.ts",
+    "test": "tsx --test src/lib/units.test.ts src/lib/songs/slides.test.ts src/lib/songs/extract.test.ts src/lib/songs/key.test.ts src/lib/services/plan.test.ts src/lib/live/presence.test.ts src/lib/services/import.test.ts",
     "worker": "tsx src/worker/transcribe.ts",
     "test:db": "tsx --test src/lib/songs/queue.db-test.ts",
     "setup": "tsx src/scripts/setup-local.ts"

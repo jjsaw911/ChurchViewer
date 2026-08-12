@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { importItemSlidesAction, saveItemSlidesAction } from "@/lib/services/actions";
+import {
+  importItemSlidesAction,
+  importSlidesFromFileAction,
+  saveItemSlidesAction,
+} from "@/lib/services/actions";
+import { IMPORTABLE } from "@/lib/services/import";
 import { slidesFromText, type SlideSource } from "@/lib/services/slides";
 import type { SlidePayload } from "@/lib/songs/types";
 
@@ -40,6 +45,7 @@ export default function ActivitySlides({
   const [slides, setSlides] = useState(initialSlides);
   const [paste, setPaste] = useState("");
   const [source, setSource] = useState("");
+  const [fileKey, setFileKey] = useState(0);
   const [status, setStatus] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -241,6 +247,60 @@ export default function ActivitySlides({
                 A blank line starts a new slide.
               </span>
             </div>
+          </div>
+
+          {/* The announcements almost always exist before anybody opens this,
+              built somewhere else by somebody else. Retyping them is the work
+              being done twice. */}
+          <div className="space-y-2 border-t border-stone-200 pt-3 dark:border-stone-800">
+            <label className="block text-xs font-medium" htmlFor={`file-${itemId}`}>
+              Or upload a file
+            </label>
+            <input
+              id={`file-${itemId}`}
+              // Remounted after each attempt, so choosing the same file twice
+              // in a row still counts as a change.
+              key={fileKey}
+              type="file"
+              accept={IMPORTABLE.join(",")}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+
+                const data = new FormData();
+                data.set("file", file);
+
+                startTransition(async () => {
+                  const result = await importSlidesFromFileAction(
+                    tenant,
+                    serviceId,
+                    itemId,
+                    data,
+                  );
+                  setFileKey((count) => count + 1);
+
+                  if (!result.ok) {
+                    setStatus(result.error);
+                    return;
+                  }
+
+                  setSlides(result.slides);
+                  setStatus(
+                    `Read ${result.slides.length} slide${
+                      result.slides.length === 1 ? "" : "s"
+                    } from ${file.name}. Check the wording.`,
+                  );
+                  router.refresh();
+                });
+              }}
+              className="w-full text-xs file:mr-3 file:rounded-lg file:border file:border-stone-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:border-amber-400 dark:file:border-stone-700 dark:file:bg-stone-900"
+            />
+            <p className="text-xs text-stone-500">
+              PowerPoint, Word, or a plain text file. One slide per slide; in Word, a blank
+              line starts a new one. The words come across — fonts, colours and clip art
+              don&rsquo;t, because they&rsquo;re the parts that look wrong on a different
+              projector. This replaces what&rsquo;s on this activity.
+            </p>
           </div>
 
           {sources.length > 0 ? (

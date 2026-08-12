@@ -14,6 +14,7 @@ import {
   orderWithInsertBefore,
   orderWithMove,
 } from "@/lib/services/ordering";
+import { isImportable, slidesFromFile } from "@/lib/services/import";
 import { normaliseSlides } from "@/lib/services/slides";
 import { parseTimeOfDay } from "@/lib/services/timeline";
 import { enqueueSongWork } from "@/lib/songs/queue";
@@ -612,6 +613,68 @@ export async function saveItemSlidesAction(input: {
   if (!saved) return { ok: false, error: "That activity is no longer in the plan." };
 
   revalidatePath(`/s/${input.tenant}`, "layout");
+  return { ok: true, slides };
+}
+
+/**
+ * Slides out of a file the church already made.
+ *
+ * The announcements exist before anyone opens this app — built in PowerPoint on
+ * a Tuesday, or typed in Word. Asking whoever runs the service to retype them
+ * into boxes is asking for the work to be done twice, which is how a church
+ * quietly goes back to using PowerPoint on the day.
+ *
+ * The words come across and nothing else: fonts, colours, boxes and clip art
+ * are exactly the parts that look wrong on somebody else's projector, and the
+ * background is a thing chosen once for the whole service.
+ */
+export async function importSlidesFromFileAction(
+  tenant: string,
+  serviceId: string,
+  itemId: string,
+  formData: FormData,
+): Promise<{ ok: true; slides: SlidePayload[] } | { ok: false; error: string }> {
+  const { church } = await requireChurchAccess(tenant);
+
+  const service = await ownedService(church.id, serviceId);
+  if (!service) return { ok: false, error: "That service no longer exists." };
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose a file." };
+
+  if (!isImportable(file.name)) {
+    return {
+      ok: false,
+      error: "That file type can't be read. PowerPoint, Word or a plain text file.",
+    };
+  }
+
+  // A deck of announcements is a few hundred kilobytes. Anything far past that
+  // is a video somebody renamed, and reading it into memory helps nobody.
+  if (file.size > 20 * 1024 * 1024) {
+    return { ok: false, error: "That file is too big to read — 20MB is the limit." };
+  }
+
+  let slides: SlidePayload[];
+  try {
+    slides = slidesFromFile(file.name, Buffer.from(await file.arrayBuffer()));
+  } catch {
+    return { ok: false, error: "That file couldn't be opened. Is it really a .pptx or .docx?" };
+  }
+
+  if (slides.length === 0) {
+    return { ok: false, error: "No words were found in that file — only pictures, perhaps?" };
+  }
+
+  const [saved] = await db
+    .update(serviceItems)
+    .set({ slides })
+    .where(and(eq(serviceItems.id, itemId), eq(serviceItems.serviceId, service.id)))
+    .returning({ id: serviceItems.id });
+
+  if (!saved) return { ok: false, error: "That activity is no longer in the plan." };
+
+  revalidatePath(`/s/${tenant}`, "layout");
   return { ok: true, slides };
 }
 
