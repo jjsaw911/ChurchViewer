@@ -26,9 +26,29 @@ export type LiveState = {
   slideIndex: number;
   /** A deliberate blank — the operator's "not this, not yet". */
   blank: boolean;
+  /**
+   * Whether the display should be playing the current item's recording.
+   *
+   * An instruction to the machine at the projector, where the sound system is,
+   * rather than a description of what the operator's phone is doing.
+   */
+  playing: boolean;
+  /**
+   * What is lined up next: chosen, visible to the operator, not on the screen.
+   *
+   * A service moves item to item, and the moment between them is when somebody
+   * needs to see what is coming without the room seeing it yet.
+   */
+  armedItemId: string | null;
 };
 
-export const IDLE_STATE: LiveState = { itemId: null, slideIndex: 0, blank: false };
+export const IDLE_STATE: LiveState = {
+  itemId: null,
+  slideIndex: 0,
+  blank: false,
+  playing: false,
+  armedItemId: null,
+};
 
 /** Who is talking. A service has one display and any number of controllers. */
 export type DeviceRole = "display" | "control";

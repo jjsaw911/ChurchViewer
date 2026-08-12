@@ -36,7 +36,13 @@ export async function readLiveState(serviceId: string): Promise<LiveState> {
     .limit(1);
 
   if (!row) return IDLE_STATE;
-  return { itemId: row.itemId, slideIndex: row.slideIndex, blank: row.blank };
+  return {
+    itemId: row.itemId,
+    slideIndex: row.slideIndex,
+    blank: row.blank,
+    playing: row.playing,
+    armedItemId: row.armedItemId,
+  };
 }
 
 export async function writeLiveState(serviceId: string, state: LiveState): Promise<void> {
@@ -47,6 +53,8 @@ export async function writeLiveState(serviceId: string, state: LiveState): Promi
       itemId: state.itemId,
       slideIndex: state.slideIndex,
       blank: state.blank,
+      playing: state.playing,
+      armedItemId: state.armedItemId,
     })
     .onConflictDoUpdate({
       target: liveStates.serviceId,
@@ -54,6 +62,8 @@ export async function writeLiveState(serviceId: string, state: LiveState): Promi
         itemId: state.itemId,
         slideIndex: state.slideIndex,
         blank: state.blank,
+        playing: state.playing,
+        armedItemId: state.armedItemId,
         updatedAt: new Date(),
       },
     });

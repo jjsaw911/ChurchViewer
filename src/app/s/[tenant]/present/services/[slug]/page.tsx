@@ -58,6 +58,7 @@ export default async function RunSheetPage({
           serviceTitle={service.title}
           slug={service.slug}
           items={items}
+          screenAspect={service.screenAspect}
         />
       )}
     </div>

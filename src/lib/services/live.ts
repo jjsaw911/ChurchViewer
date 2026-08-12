@@ -46,7 +46,11 @@ function entryFor(serviceId: string): Entry {
 }
 
 const same = (a: LiveState, b: LiveState) =>
-  a.itemId === b.itemId && a.slideIndex === b.slideIndex && a.blank === b.blank;
+  a.itemId === b.itemId &&
+  a.slideIndex === b.slideIndex &&
+  a.blank === b.blank &&
+  a.playing === b.playing &&
+  a.armedItemId === b.armedItemId;
 
 /**
  * Take a new value from wherever it came from.
@@ -74,6 +78,8 @@ function parse(raw: string | null): LiveState | null {
       itemId: typeof parsed.itemId === "string" ? parsed.itemId : null,
       slideIndex: parsed.slideIndex,
       blank: parsed.blank === true,
+      playing: parsed.playing === true,
+      armedItemId: typeof parsed.armedItemId === "string" ? parsed.armedItemId : null,
     };
   } catch {
     return null;

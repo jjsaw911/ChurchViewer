@@ -23,8 +23,8 @@ export default async function ServiceScreenPage({
   if (!service) notFound();
 
   const rows = toPlanItems(await loadPlanItems(service.id));
-  // The recording plays in the operator's window, never in this one.
-  const items = await presentItems(rows, service.startsAt, false, service.backgroundSrc);
+  // With media: the sound comes out of this machine now, not the operator's.
+  const items = await presentItems(rows, service.startsAt, true, service.backgroundSrc);
 
   return (
     <LiveOutput

@@ -144,7 +144,15 @@ export default function ScreenPreviewDialog({
             <button
               type="button"
               disabled={slides.length === 0 && !picture}
-              onClick={() => publishLive(serviceId, { itemId, slideIndex: index, blank: false })}
+              onClick={() =>
+                publishLive(serviceId, {
+                  itemId,
+                  slideIndex: index,
+                  blank: false,
+                  playing: false,
+                  armedItemId: null,
+                })
+              }
               className="rounded-lg bg-amber-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
             >
               Put this on the screen

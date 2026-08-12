@@ -1,8 +1,61 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { useLiveState } from "@/lib/services/live";
+import { useEffect, useMemo, useRef } from "react";
+import { publishLive, useLiveState } from "@/lib/services/live";
+import { slideAt } from "@/lib/songs/slides";
+import type { LiveState } from "@/lib/live/protocol";
 import type { PresentItem } from "@/lib/services/present";
+
+/**
+ * Playing the recording, here, on the machine wired to the sound system.
+ *
+ * The operator's phone says start; this is what starts. And because the slides
+ * are timed against this audio, the display works out which one is up and
+ * publishes it — while a song plays, the machine holding the recording knows
+ * where the service is, and everything else follows it.
+ */
+function usePlayback(serviceId: string, state: LiveState, item: PresentItem | null): void {
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const slide = useRef(state.slideIndex);
+  const latest = useRef(state);
+
+  useEffect(() => {
+    slide.current = state.slideIndex;
+    latest.current = state;
+  }, [state]);
+
+  const url = item?.followable ? item.audioUrl : null;
+  const slides = item?.slides;
+  const offset = item?.timingOffsetMs ?? 0;
+
+  useEffect(() => {
+    if (!state.playing || !url || !slides) return;
+
+    const element = new Audio(url);
+    audio.current = element;
+
+    const follow = () => {
+      const index = slideAt(slides, element.currentTime * 1000, offset);
+      if (index < 0 || index === slide.current) return;
+      slide.current = index;
+      publishLive(serviceId, { ...latest.current, slideIndex: index, playing: true });
+    };
+
+    const timer = setInterval(follow, 250);
+
+    // Autoplay is refused until a window has been interacted with. The Mac app
+    // allows it outright; a browser window needs one click first.
+    void element.play().catch(() => undefined);
+
+    return () => {
+      clearInterval(timer);
+      element.pause();
+      audio.current = null;
+    };
+    // Not the whole state: re-running on every slide change would restart the
+    // song from the top each time it turned a page.
+  }, [serviceId, state.playing, url, slides, offset]);
+}
 
 /**
  * F fills the screen, F again gives it back.
@@ -48,6 +101,9 @@ export default function LiveOutput({
   const state = useLiveState(serviceId);
   useFullscreenKey();
   const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
+  const playing = state.itemId ? byId.get(state.itemId) : undefined;
+
+  usePlayback(serviceId, state, playing ?? null);
 
   const item = state.itemId ? byId.get(state.itemId) : undefined;
   const slide = state.blank ? null : item?.slides[state.slideIndex];
@@ -105,12 +161,11 @@ export default function LiveOutput({
       ) : (
         // Only while nothing is up: the moment there are words on the screen,
         // the screen has nothing on it but the words.
-        <div className="space-y-3 text-center">
-          <p className="text-2xl text-white/30">{serviceTitle}</p>
-          <p className="text-xs tracking-[0.2em] text-white/15 uppercase">
-            Press F for full screen
-          </p>
-        </div>
+        // Idle means black. A title card is still something the room can
+        // read, and the point of "nothing on screen" is nothing on screen.
+        <p className="text-[0.6rem] tracking-[0.2em] text-white/10 uppercase">
+          {serviceTitle} · F for full screen
+        </p>
       )}
     </div>
   );

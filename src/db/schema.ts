@@ -374,6 +374,16 @@ export const liveStates = pgTable("live_states", {
   itemId: uuid("item_id").references(() => serviceItems.id, { onDelete: "set null" }),
   slideIndex: integer("slide_index").notNull().default(0),
   blank: boolean("blank").notNull().default(false),
+  /**
+   * Whether the display should be playing this item's recording.
+   *
+   * The sound comes out of the machine at the projector, not the operator's
+   * phone — so this is an instruction to that machine rather than a note about
+   * what some other device is doing.
+   */
+  playing: boolean("playing").notNull().default(false),
+  /** The activity armed to go next, shown to the operator before it goes up. */
+  armedItemId: uuid("armed_item_id").references(() => serviceItems.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

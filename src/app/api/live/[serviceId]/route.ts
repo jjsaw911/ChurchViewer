@@ -45,6 +45,8 @@ export async function POST(
     itemId: typeof body.itemId === "string" ? body.itemId : null,
     slideIndex: Math.max(0, Math.round(body.slideIndex)),
     blank: body.blank === true,
+    playing: body.playing === true,
+    armedItemId: typeof body.armedItemId === "string" ? body.armedItemId : null,
   };
 
   await writeLiveState(serviceId, state);
