@@ -33,6 +33,17 @@ set +a
 
 : "${DATABASE_URL:?DATABASE_URL is not set in $APP_DIR/.env.local}"
 : "${GCS_BUCKET:?GCS_BUCKET is not set in $APP_DIR/.env.local}"
+: "${GOOGLE_APPLICATION_CREDENTIALS:?GOOGLE_APPLICATION_CREDENTIALS is not set in $APP_DIR/.env.local}"
+
+# The VM's own service account is scoped read-only for storage on purpose, so
+# the upload has to be the app's storage account — the same key the app writes
+# uploads with. It gets its own gcloud config directory rather than sharing the
+# one an administrator logs into by hand.
+export CLOUDSDK_CONFIG="${CLOUDSDK_CONFIG:-$BACKUP_DIR/.gcloud}"
+mkdir -p "$CLOUDSDK_CONFIG"
+if ! gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null | grep -q .; then
+  gcloud --quiet auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+fi
 
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 dump="$BACKUP_DIR/churchviewer-$stamp.dump"
@@ -53,7 +64,7 @@ if ! pg_restore --list "$dump" | grep -q "TABLE DATA public churches"; then
 fi
 
 size="$(stat -c %s "$dump")"
-gsutil -q cp "$dump" "gs://$GCS_BUCKET/backups/" || {
+gcloud --quiet storage cp "$dump" "gs://$GCS_BUCKET/backups/" || {
   echo "backup: took $dump ($size bytes) but could not upload it" >&2
   exit 1
 }
@@ -67,10 +78,10 @@ find "$BACKUP_DIR" -name 'churchviewer-*.dump' -type f -mtime "+$KEEP_LOCAL_DAYS
 # reads the same as the file list, and it can only ever match something this
 # script wrote.
 cutoff="$(date -u -d "$KEEP_REMOTE_DAYS days ago" +%Y%m%d)"
-gsutil ls "gs://$GCS_BUCKET/backups/" 2>/dev/null | while read -r object; do
+gcloud storage ls "gs://$GCS_BUCKET/backups/" 2>/dev/null | while read -r object; do
   name="$(basename "$object")"
   [[ "$name" =~ ^churchviewer-([0-9]{8})T[0-9]{6}Z\.dump$ ]] || continue
   [[ "${BASH_REMATCH[1]}" -lt "$cutoff" ]] || continue
-  gsutil -q rm "$object"
+  gcloud --quiet storage rm "$object"
   echo "backup: pruned $name"
 done
