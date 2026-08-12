@@ -30,6 +30,8 @@ export default async function ServiceScreenPage({
     <LiveOutput
       serviceId={service.id}
       serviceTitle={service.title}
+      churchName={church.name}
+      heldOn={service.heldOn}
       items={items}
       fallbackBackground={await playbackUrl(service.backgroundSrc)}
     />

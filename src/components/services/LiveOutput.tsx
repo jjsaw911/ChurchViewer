@@ -173,6 +173,23 @@ export function useFullscreenKey(): void {
 }
 
 /**
+ * `2026-08-16` -> `Sunday, August 16`.
+ *
+ * Read from the back of a room, so the weekday is spelled out and the year is
+ * left off — nobody standing in a church on Sunday morning is unsure which year
+ * it is. Parsed as UTC, which is how the date is stored; letting it drift into
+ * local time turns Sunday into Saturday for half the world.
+ */
+function longDate(heldOn: string): string {
+  return new Date(`${heldOn}T00:00:00Z`).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
  * The screen the room sees. Nothing but the slide.
  *
  * It holds every slide in the service already, so what passes between the
@@ -182,12 +199,18 @@ export function useFullscreenKey(): void {
 export default function LiveOutput({
   serviceId,
   serviceTitle,
+  /** Whose room this is — the banner before anything starts. */
+  churchName,
+  /** The day the service is planned for, as `YYYY-MM-DD`. */
+  heldOn,
   items,
   /** The service's background, for the stretches when nothing is live. */
   fallbackBackground = null,
 }: {
   serviceId: string;
   serviceTitle: string;
+  churchName: string;
+  heldOn: string;
   items: PresentItem[];
   fallbackBackground?: string | null;
 }) {
@@ -271,20 +294,33 @@ export default function LiveOutput({
             </p>
           ))}
         </div>
+      ) : state.blank ? (
+        // Blanked on purpose. Nothing at all, not even the church's name — the
+        // operator pressed it because something should not be on that screen,
+        // and a banner is still something on the screen.
+        <span className="sr-only">Screen blanked</span>
       ) : (
-        // Only while nothing is up: the moment there are words on the screen,
-        // the screen has nothing on it but the words.
-        // Idle means black. A title card is still something the room can
-        // read, and the point of "nothing on screen" is nothing on screen.
-        // Whether a remote has found this screen, said only while the screen
-        // is empty — it can never be up in front of anybody.
-        <div className="flex flex-col items-center gap-3 text-white/25">
+        // Between things: the room, and the day. This is on the wall the whole
+        // time people are arriving — longer than any slide all morning — and a
+        // black rectangle reads as a projector nobody switched on.
+        <div className="flex flex-col items-center gap-4 text-center">
+          <h1 className="text-6xl font-semibold tracking-tight text-balance sm:text-7xl lg:text-8xl">
+            {churchName}
+          </h1>
+          <p className="text-2xl font-medium text-white/70 sm:text-3xl">{longDate(heldOn)}</p>
+        </div>
+      )}
+
+      {/* Low, small, and only while nothing is up: whether a remote has found
+          this screen. Gone the instant there are words to read. */}
+      {!slide && !state.blank ? (
+        <div className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-2 text-white/25">
           <DisplayLights presence={presence} />
-          <p className="text-[0.6rem] tracking-[0.2em] text-white/10 uppercase">
+          <p className="text-[0.6rem] tracking-[0.2em] text-white/15 uppercase">
             {serviceTitle} · F for full screen
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

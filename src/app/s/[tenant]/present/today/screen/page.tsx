@@ -25,13 +25,21 @@ export default async function TodayScreenPage({
 
   const service = await currentService(church.id, todayForServices());
 
-  // Black, and nothing else. A "no service planned" page is still a page, and
-  // this window is pointed at a congregation.
+  // No plan yet, and still a room with people arriving in it. The same banner,
+  // with today's date — never an error, never a page.
   if (!service) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
-        <p className="text-[0.6rem] tracking-[0.2em] text-white/10 uppercase">
-          {church.name} · nothing planned
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black px-12 text-center text-white">
+        <h1 className="text-6xl font-semibold tracking-tight text-balance sm:text-7xl lg:text-8xl">
+          {church.name}
+        </h1>
+        <p className="text-2xl font-medium text-white/70 sm:text-3xl">
+          {new Date(`${todayForServices()}T00:00:00Z`).toLocaleDateString("en-US", {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+            timeZone: "UTC",
+          })}
         </p>
       </div>
     );
@@ -45,6 +53,8 @@ export default async function TodayScreenPage({
     <LiveOutput
       serviceId={service.id}
       serviceTitle={service.title}
+      churchName={church.name}
+      heldOn={service.heldOn}
       items={items}
       fallbackBackground={await playbackUrl(service.backgroundSrc)}
     />
