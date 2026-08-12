@@ -4,7 +4,7 @@ import LiveOutput from "@/components/services/LiveOutput";
 import { requireChurchAccess } from "@/lib/admin/guard";
 import { getService, loadPlanItems, toPlanItems } from "@/lib/services/plan";
 import { presentItems } from "@/lib/services/present";
-import { playbackUrl } from "@/lib/storage";
+import { resolveBackground } from "@/lib/media/background";
 
 export const metadata: Metadata = { title: "On screen" };
 
@@ -33,7 +33,7 @@ export default async function ServiceScreenPage({
       churchName={church.name}
       heldOn={service.heldOn}
       items={items}
-      fallbackBackground={await playbackUrl(service.backgroundSrc)}
+      fallbackBackground={await resolveBackground(service.backgroundSrc)}
     />
   );
 }

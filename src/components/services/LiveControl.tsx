@@ -408,7 +408,7 @@ export default function LiveControl({
                     aspect={screenAspect}
                     slide={onScreen}
                     slideCount={item.slides.length}
-                    backgroundUrl={state.blank ? null : item.backgroundUrl}
+                    background={state.blank ? null : item.background}
                     picture={
                       !state.blank && !onScreen && item.attachment?.kind === "image"
                         ? item.attachment.url
@@ -553,7 +553,7 @@ export default function LiveControl({
                   aspect={screenAspect}
                   slide={item.slides[0] ?? null}
                   slideCount={item.slides.length}
-                  backgroundUrl={item.backgroundUrl}
+                  background={item.background}
                   picture={
                     item.slides.length === 0 && item.attachment?.kind === "image"
                       ? item.attachment.url

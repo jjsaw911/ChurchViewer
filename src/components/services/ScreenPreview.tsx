@@ -1,5 +1,7 @@
 "use client";
 
+import BackgroundLayer from "@/components/services/BackgroundLayer";
+import type { Background } from "@/lib/media/background";
 import type { SlidePayload } from "@/lib/songs/types";
 
 /**
@@ -17,7 +19,7 @@ export default function ScreenPreview({
   aspect,
   slide,
   slideCount,
-  backgroundUrl,
+  background,
   picture,
   video,
   size = "thumb",
@@ -28,7 +30,7 @@ export default function ScreenPreview({
   /** The slide to draw; in a row, the first, since that's what it opens with. */
   slide: SlidePayload | null;
   slideCount: number;
-  backgroundUrl: string | null;
+  background: Background | null;
   /** An image standing in for the whole item, when there are no words. */
   picture: string | null;
   /** True when what's attached is something that plays rather than shows. */
@@ -60,17 +62,7 @@ export default function ScreenPreview({
         <img src={picture} alt="" className="absolute inset-0 h-full w-full object-contain" />
       ) : (
         <>
-          {backgroundUrl ? (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={backgroundUrl}
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-black/45" />
-            </>
-          ) : null}
+          <BackgroundLayer background={background} still />
 
           {slide ? (
             <div

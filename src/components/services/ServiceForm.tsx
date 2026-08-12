@@ -106,10 +106,11 @@ export default function ServiceForm({
         label="Background on the projector"
         tenant={tenant}
         defaultValue={initial("backgroundSrc", service?.backgroundSrc ?? "")}
-        accept="image/*"
-        kinds={["image"]}
+        accept="image/*,video/*"
+        kinds={["image", "video"]}
+        colours
         uploadsEnabled={uploadsEnabled}
-        hint="Sits behind the words for the whole service. Anything busy or bright makes lyrics hard to read from the back — the screen darkens it, but a quiet picture still wins. Leave it empty for black."
+        hint="Sits behind the words for the whole service: a picture, a video that loops silently, or a colour. Anything busy or bright makes lyrics hard to read from the back — the screen darkens it, but a quiet background still wins. Leave it empty for black."
       />
 
       <div className="space-y-1.5">

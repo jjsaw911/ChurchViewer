@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ScreenPreview from "@/components/services/ScreenPreview";
+import type { Background } from "@/lib/media/background";
 import { publishLive } from "@/lib/services/live";
 import type { SlidePayload } from "@/lib/songs/types";
 
@@ -24,7 +25,7 @@ export default function ScreenPreviewDialog({
   title,
   itemId,
   slides,
-  backgroundUrl,
+  background,
   picture,
   video,
   onClose,
@@ -36,7 +37,7 @@ export default function ScreenPreviewDialog({
   /** Which activity this is, so the output window is told the right one. */
   itemId: string;
   slides: SlidePayload[];
-  backgroundUrl: string | null;
+  background: Background | null;
   picture: string | null;
   video: boolean;
   onClose: () => void;
@@ -97,7 +98,7 @@ export default function ScreenPreviewDialog({
           aspect={aspect}
           slide={slide}
           slideCount={slides.length}
-          backgroundUrl={backgroundUrl}
+          background={background}
           picture={picture}
           video={video}
         />

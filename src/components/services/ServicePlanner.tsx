@@ -15,6 +15,7 @@ import {
   updateServiceItemAction,
 } from "@/lib/services/actions";
 import { effectiveSlides, type SlideSource } from "@/lib/services/slides";
+import type { Background } from "@/lib/media/background";
 import type { Attachment } from "@/lib/media/attachment";
 import {
   formatTimeOfDay,
@@ -60,7 +61,7 @@ export type PlanItem = {
   /** The linked song's recording, so a row can be listened to where it sits. */
   songAudioUrl: string | null;
   /** What sits behind the words on the screen for this activity. */
-  backgroundUrl: string | null;
+  background: Background | null;
 };
 
 export const KINDS = [
@@ -134,7 +135,7 @@ export type Focus = {
   itemId: string;
   title: string;
   slides: SlidePayload[];
-  backgroundUrl: string | null;
+  background: Background | null;
   picture: string | null;
   video: boolean;
 };
@@ -490,7 +491,7 @@ function ActivityBlock({
           itemId: item.id,
           title: item.title,
           slides,
-          backgroundUrl: item.backgroundUrl,
+          background: item.background,
           picture,
           video: isVideo,
         })
@@ -554,7 +555,7 @@ function ActivityBlock({
             aspect={shared.screenAspect}
             slide={slides[0] ?? null}
             slideCount={slides.length}
-            backgroundUrl={item.backgroundUrl}
+            background={item.background}
             picture={
               slides.length === 0 && item.attachment?.kind === "image"
                 ? item.attachment.url
@@ -665,7 +666,7 @@ function ActivityBlock({
           title={item.title}
           itemId={item.id}
           slides={slides}
-          backgroundUrl={item.backgroundUrl}
+          background={item.background}
           picture={picture}
           video={isVideo}
           onClose={() => setPreviewing(false)}
@@ -806,10 +807,11 @@ function ActivityBlock({
                 label="Background for this activity"
                 tenant={shared.tenant}
                 defaultValue={item.backgroundSrc}
-                accept="image/*"
-                kinds={["image"]}
+                accept="image/*,video/*"
+                kinds={["image", "video"]}
+                colours
                 uploadsEnabled={shared.uploadsEnabled}
-                hint="Behind the words on the projector, for this one activity. Empty uses the service's own."
+                hint="Behind the words for this one activity — a picture, a silent loop, or a colour. Empty uses the song's own, then the service's."
               />
             </div>
 
@@ -984,7 +986,7 @@ export default function ServicePlanner({
       itemId: first.id,
       title: first.title,
       slides,
-      backgroundUrl: first.backgroundUrl,
+      background: first.background,
       picture:
         slides.length === 0 && first.attachment?.kind === "image"
           ? first.attachment.url
@@ -1163,7 +1165,7 @@ export default function ServicePlanner({
             aspect={screenAspect}
             slide={showing.slides[0] ?? null}
             slideCount={showing.slides.length}
-            backgroundUrl={showing.backgroundUrl}
+            background={showing.background}
             picture={showing.picture}
             video={showing.video}
           />

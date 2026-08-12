@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import BackgroundLayer from "@/components/services/BackgroundLayer";
 import { DisplayLights } from "@/components/services/LinkLights";
 import { useStayAwake } from "@/lib/services/awake";
 import {
@@ -11,6 +12,7 @@ import {
 } from "@/lib/services/live";
 import { slideAt } from "@/lib/songs/slides";
 import { asGain, type LiveState } from "@/lib/live/protocol";
+import type { Background } from "@/lib/media/background";
 import type { PresentItem } from "@/lib/services/present";
 
 /**
@@ -341,7 +343,7 @@ export default function LiveOutput({
   churchName: string;
   heldOn: string;
   items: PresentItem[];
-  fallbackBackground?: string | null;
+  fallbackBackground?: Background | null;
 }) {
   const state = useLiveState(serviceId, "display");
   const presence = usePresence(serviceId, "display");
@@ -393,23 +395,13 @@ export default function LiveOutput({
 
   // Blanking means black. A background showing through would be a screen that
   // still has something on it, which is the opposite of what was asked for.
-  const background = state.blank ? null : (item?.backgroundUrl ?? fallbackBackground);
+  const background = state.blank ? null : (item?.background ?? fallbackBackground);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black px-12 text-white">
-      {background ? (
-        <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={background}
-            alt=""
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-          />
-          {/* Words first: a photograph is rarely dark enough on its own, and a
-              line nobody at the back can read is worse than no picture. */}
-          <div className="pointer-events-none absolute inset-0 bg-black/45" />
-        </>
-      ) : null}
+      {/* Words first: whatever is behind them is darkened, because a line
+          nobody at the back can read is worse than no picture at all. */}
+      <BackgroundLayer background={background} />
 
       {slide ? (
         <div className="space-y-6 text-center">

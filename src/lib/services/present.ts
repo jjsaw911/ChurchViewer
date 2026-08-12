@@ -1,4 +1,5 @@
 import { resolveAttachment, type Attachment } from "@/lib/media/attachment";
+import { resolveBackground, type Background } from "@/lib/media/background";
 import { effectiveSlides } from "@/lib/services/slides";
 import { layoutPlan } from "@/lib/services/timeline";
 import { playbackUrl } from "@/lib/storage";
@@ -38,9 +39,10 @@ export type PresentItem = {
   attachment: Attachment | null;
   /**
    * What goes behind the words on the projector: this activity's own
-   * background, or the service's, or nothing — which the screen draws as black.
+   * background, then the song's, then the service's, then nothing — which the
+   * screen draws as black. A picture, a loop, or a colour.
    */
-  backgroundUrl: string | null;
+  background: Background | null;
   /** Set when there's a recording this item's slides are timed against. */
   videoId: string | null;
   audioUrl: string | null;
@@ -72,7 +74,7 @@ export async function presentItems(
   serviceBackgroundSrc: string | null = null,
 ): Promise<PresentItem[]> {
   const plan = layoutPlan(rows, serviceStartsAt);
-  const serviceBackground = await playbackUrl(serviceBackgroundSrc);
+  const serviceBackground = await resolveBackground(serviceBackgroundSrc);
 
   return Promise.all(
     plan.flat.map(async (entry) => {
@@ -99,13 +101,13 @@ export async function presentItems(
         // Always resolved, even where the recording isn't: a picture is content
         // for the screen, not something only the operator plays.
         attachment: await resolveAttachment(item.mediaUrl),
-        // The activity's own picture, then the song's, then the service's,
-        // then black. Most specific wins, which is the order somebody would
-        // say it out loud: "this one has its own", "that song always looks
-        // like this", "everything else matches the service".
-        backgroundUrl:
-          (await playbackUrl(item.backgroundSrc)) ??
-          (await playbackUrl(item.songBackgroundSrc)) ??
+        // The activity's own, then the song's, then the service's, then black.
+        // Most specific wins, which is the order somebody would say it out
+        // loud: "this one has its own", "that song always looks like this",
+        // "everything else matches the service".
+        background:
+          (await resolveBackground(item.backgroundSrc)) ??
+          (await resolveBackground(item.songBackgroundSrc)) ??
           serviceBackground,
         videoId,
         audioUrl,

@@ -10,28 +10,9 @@ import {
 } from "@/db/schema";
 import { isGcsLocation } from "@/lib/storage";
 
-export type MediaKind = "audio" | "video" | "image" | "captions" | "other";
-
-/**
- * What sort of thing this is, from whatever the browser told us and, failing
- * that, the name. Content types are missing often enough — a drag from a file
- * server, an external link someone pasted — that the extension has to be a
- * fallback rather than a nicety.
- */
-export function kindFor(contentType: string, filename: string): MediaKind {
-  const type = contentType.toLowerCase();
-  if (type === "text/vtt" || type === "text/srt") return "captions";
-  if (type.startsWith("audio/")) return "audio";
-  if (type.startsWith("video/")) return "video";
-  if (type.startsWith("image/")) return "image";
-
-  const extension = filename.toLowerCase().split(".").pop() ?? "";
-  if (["mp3", "m4a", "wav", "aac", "ogg", "flac"].includes(extension)) return "audio";
-  if (["mp4", "mov", "m4v", "webm", "avi", "mkv"].includes(extension)) return "video";
-  if (["jpg", "jpeg", "png", "gif", "webp", "avif", "svg"].includes(extension)) return "image";
-  if (["vtt", "srt"].includes(extension)) return "captions";
-  return "other";
-}
+// Pure, and used by code that must not open a database to ask.
+export { kindFor, type MediaKind } from "@/lib/media/kind";
+import { kindFor, type MediaKind } from "@/lib/media/kind";
 
 /** The last path segment, with the uuid we prefix object keys with taken off. */
 export function displayFilename(locationOrName: string): string {

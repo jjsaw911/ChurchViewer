@@ -2,6 +2,7 @@ import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { serviceItems, services, songs } from "@/db/schema";
 import { resolveAttachment } from "@/lib/media/attachment";
+import { resolveBackground } from "@/lib/media/background";
 import { playbackUrl } from "@/lib/storage";
 import type { SlideSource } from "@/lib/services/slides";
 
@@ -104,7 +105,7 @@ export async function withAttachments(
   rows: PlanItemRow[],
   serviceBackgroundSrc: string | null = null,
 ) {
-  const serviceBackground = await playbackUrl(serviceBackgroundSrc);
+  const serviceBackground = await resolveBackground(serviceBackgroundSrc);
 
   return Promise.all(
     rows.map(async (row) => ({
@@ -113,9 +114,9 @@ export async function withAttachments(
       songAudioUrl: row.songId ? await playbackUrl(row.songAudioSrc) : null,
       // This activity's own, then the song's, then the service's — the same
       // order the screen itself follows.
-      backgroundUrl:
-        (await playbackUrl(row.backgroundSrc)) ??
-        (await playbackUrl(row.songBackgroundSrc)) ??
+      background:
+        (await resolveBackground(row.backgroundSrc)) ??
+        (await resolveBackground(row.songBackgroundSrc)) ??
         serviceBackground,
     })),
   );
