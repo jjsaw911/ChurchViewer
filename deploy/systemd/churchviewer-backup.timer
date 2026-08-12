@@ -1,0 +1,17 @@
+# /etc/systemd/system/churchviewer-backup.timer
+#
+# Every morning at 09:10 UTC — a little after 4am where the churches are, so
+# the dump is taken when nobody is editing a plan, and the newest copy is
+# always from before that day's service rather than during it.
+[Unit]
+Description=Daily ChurchViewer database backup
+
+[Timer]
+OnCalendar=*-*-* 09:10:00 UTC
+# A machine that was off at 09:10 backs up when it comes back, rather than
+# skipping the day entirely.
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

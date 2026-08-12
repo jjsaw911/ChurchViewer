@@ -56,6 +56,43 @@ shell access means whoever creates the account already holds the server.
 - **The Google OAuth pair is blank.** The sign-in button stays hidden until it
   isn't; everything else works without it.
 
+## Backups
+
+`deploy/backup.sh` dumps the database, checks the dump actually contains the
+churches table, and copies it to `gs://churchviewer-media/backups/`. It keeps
+14 days on the VM's data disk and 120 in the bucket. `churchviewer-backup.timer`
+runs it at 09:10 UTC daily — around 4am where the churches are, so the newest
+copy is always from before that day's service.
+
+Take one by hand before any migration:
+
+```sh
+sudo -u churchviewer /srv/churchviewer/deploy/backup.sh
+```
+
+To restore, into a scratch database first — never straight over the live one:
+
+```sh
+gsutil cp gs://churchviewer-media/backups/churchviewer-20260811T091000Z.dump /tmp/
+sudo -u postgres createdb churchviewer_check
+sudo -u postgres pg_restore --dbname=churchviewer_check --no-owner /tmp/churchviewer-*.dump
+```
+
+Look at it, and only then decide what to move across. One table usually comes
+back on its own:
+
+```sh
+sudo -u postgres pg_restore --dbname=churchviewer --data-only --table=service_items \
+  --no-owner /tmp/churchviewer-20260811T091000Z.dump
+```
+
+Check it is running, and when it last succeeded:
+
+```sh
+systemctl list-timers churchviewer-backup.timer
+journalctl -u churchviewer-backup.service -n 20
+```
+
 ## Storage and scratch space
 
 Uploads go to `gs://churchviewer-media` — private, uniform access, public access
