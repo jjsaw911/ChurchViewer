@@ -77,6 +77,9 @@ npm run lint
 | `<church>.churchviewer.com/admin/services` | Plan a service against the clock |
 | `<church>.churchviewer.com/present/songs/<slug>` | Full-screen slides that follow the recording |
 | `<church>.churchviewer.com/present/services/<slug>` | The run sheet for the day |
+| `<church>.churchviewer.com/present/today` | Whichever service is on — the remote's standing address |
+| `<church>.churchviewer.com/present/today/screen` | The projector's standing address; no navigation, no footer |
+| `<church>.churchviewer.com/present/today/stage` | The stage monitor's standing address |
 
 `src/proxy.ts` reads the `Host` header and rewrites `<church>.churchviewer.com/x`
 onto the `/s/<church>/x` route tree. Links inside a church site are written as

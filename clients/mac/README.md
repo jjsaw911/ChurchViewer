@@ -17,6 +17,10 @@ It asks its questions in ordinary Mac dialogs — the address of the output
 screen, whether to fill the projector at launch, whether to open at startup —
 builds if it has to, installs to `/Applications`, and offers to open it.
 
+In Settings, typing the church's name is the whole setup: both windows are
+pointed at `<church>.churchviewer.com/present/today/…`, which is whichever
+service the church is on. Nobody has to come back and change it next week.
+
 **For the Mac at the church, which almost certainly has no developer tools:**
 
 ```sh
@@ -37,8 +41,8 @@ Scripted, for anyone who prefers it:
 
 Everything is in the menu bar icon (the little TV, top right of your Mac) — it
 stays reachable even when the window is filling a projector. Settings opens as
-its own window on your screen, never on the projector, and holds the address,
-the screen picker, "fill at launch", "open at startup", and buttons to fill the
+its own window on your screen, never on the projector, and holds the church
+name, the two addresses, the screen picker, "fill at launch", "open at startup", and buttons to fill the
 projector or reload. Moving the mouse over the display window also shows a
 Settings button; it fades when you stop.
 

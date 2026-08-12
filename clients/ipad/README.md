@@ -23,9 +23,10 @@ it can't be done from a script.
 
 ## Using it
 
-First run asks for the run sheet address — the page you drive from, **not** the
-output screen the projector shows. From a plan, press **Run it** and copy that
-page's address. You sign in once inside the app and it stays signed in.
+First run asks for your church's name — `citychurch`, not an address. The rest
+of it is the same for every church, so it's printed beside the field rather
+than typed. That opens the list of plans; you sign in once inside the app and
+it stays signed in.
 
 Along the bottom: **Back**, **Next**, **Blank**, and settings. Next is the
 biggest target on purpose — it's pressed ten times as often as Back, this gets
