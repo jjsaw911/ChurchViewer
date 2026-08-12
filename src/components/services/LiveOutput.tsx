@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
 import { DisplayLights } from "@/components/services/LinkLights";
 import { publishLive, useLiveState, usePresence } from "@/lib/services/live";
@@ -132,22 +131,24 @@ function FilmScreen({
 }
 
 /**
- * Fetch the slides again while nothing is up, so their links stay alive.
+ * Load the whole page again, now and then, while nothing is on the screen.
  *
- * Every recording and picture on this page is a bucket URL signed when the page
- * loaded, and signatures expire. A projector window opened the night before is
- * the ordinary case, not the unusual one — so it quietly refetches while the
- * screen is empty, and never, ever while something is on it.
+ * Two reasons, and a full reload is what covers both. Every recording and
+ * picture here is a bucket URL signed when the page loaded, and signatures
+ * expire — a projector window opened the night before is the ordinary case.
+ * And this window stays open for weeks at a time, so without this it goes on
+ * running whatever version of the app it happened to start with, and a fix
+ * shipped on Thursday never reaches the room.
+ *
+ * Only while the screen is empty. Never, ever while something is on it.
  */
 function useFreshLinks(idle: boolean): void {
-  const router = useRouter();
-
   useEffect(() => {
     if (!idle) return;
 
-    const timer = setInterval(() => router.refresh(), 60 * 60 * 1000);
+    const timer = setInterval(() => window.location.reload(), 30 * 60 * 1000);
     return () => clearInterval(timer);
-  }, [idle, router]);
+  }, [idle]);
 }
 
 /**
