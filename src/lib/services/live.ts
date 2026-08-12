@@ -61,7 +61,8 @@ const same = (a: LiveState, b: LiveState) =>
   a.slideIndex === b.slideIndex &&
   a.blank === b.blank &&
   a.playing === b.playing &&
-  a.armedItemId === b.armedItemId;
+  a.armedItemId === b.armedItemId &&
+  a.volume === b.volume;
 
 /**
  * Take a new value from wherever it came from.
@@ -91,6 +92,7 @@ function parse(raw: string | null): LiveState | null {
       blank: parsed.blank === true,
       playing: parsed.playing === true,
       armedItemId: typeof parsed.armedItemId === "string" ? parsed.armedItemId : null,
+      volume: typeof parsed.volume === "number" ? parsed.volume : IDLE_STATE.volume,
     };
   } catch {
     return null;

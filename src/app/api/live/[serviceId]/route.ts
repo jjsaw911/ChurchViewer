@@ -66,6 +66,10 @@ export async function POST(
           ? body.armedItemId
           : null
         : current.armedItemId,
+    volume:
+      typeof body.volume === "number"
+        ? Math.min(100, Math.max(0, Math.round(body.volume)))
+        : current.volume,
   };
 
   await writeLiveState(serviceId, state);

@@ -12,6 +12,9 @@ import WebKit
 /// happens once and survives restarts.
 struct DisplayWebView: NSViewRepresentable {
     let url: URL
+    /// "Projector" or "Stage" — which output this window is, so the menu bar
+    /// can reach the right one.
+    let surface: String
     /// Bumped to force a reload — a projector that showed a blank page needs a
     /// way back that isn't quitting the app.
     let reloadToken: Int
@@ -32,6 +35,7 @@ struct DisplayWebView: NSViewRepresentable {
         configuration.mediaTypesRequiringUserActionForPlayback = []
 
         let view = WKWebView(frame: .zero, configuration: configuration)
+        LiveKeys.register(view, as: surface)
         view.navigationDelegate = context.coordinator
         view.setValue(false, forKey: "drawsBackground")
         view.load(URLRequest(url: url))

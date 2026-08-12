@@ -384,6 +384,15 @@ export const liveStates = pgTable("live_states", {
   playing: boolean("playing").notNull().default(false),
   /** The activity armed to go next, shown to the operator before it goes up. */
   armedItemId: uuid("armed_item_id").references(() => serviceItems.id, { onDelete: "set null" }),
+  /**
+   * How loud the recordings play, 0 to 100.
+   *
+   * Set from the remote, because the person who can hear whether it is too loud
+   * is standing in the room and not at the machine. Kept with the rest of the
+   * live state so a projector that reloads mid-service comes back at the volume
+   * the room was already listening to, rather than at whatever it opens with.
+   */
+  volume: integer("volume").notNull().default(85),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1,0 +1,1 @@
+ALTER TABLE "live_states" ADD COLUMN "volume" integer DEFAULT 85 NOT NULL;

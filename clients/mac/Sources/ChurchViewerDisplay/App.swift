@@ -109,6 +109,23 @@ private struct DisplayCommands: View {
         }
         .keyboardShortcut(.escape, modifiers: .command)
 
+        Divider()
+
+        // The override, for whoever is standing next to the machine rather than
+        // holding the remote. The microphone feeds back, or somebody starts
+        // speaking over the music, and going to find the person with the iPad
+        // is not a plan. These press the same keys the remote does, so there is
+        // one way for a thing to happen rather than two that can disagree.
+        Button("Pause or resume the music") { LiveKeys.press("p") }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
+            .disabled(!settings.projector.isConfigured)
+
+        Button("Blank or unblank the screen") { LiveKeys.press("b") }
+            .keyboardShortcut("b", modifiers: [.command, .shift])
+            .disabled(!settings.projector.isConfigured)
+
+        Divider()
+
         Button("Reload both", action: reload)
             .keyboardShortcut("r", modifiers: .command)
     }
@@ -128,7 +145,7 @@ private struct OutputScene: View {
             Color.black.ignoresSafeArea()
 
             if let url = output.url {
-                DisplayWebView(url: url, reloadToken: reloadToken)
+                DisplayWebView(url: url, surface: output.name, reloadToken: reloadToken)
                     .ignoresSafeArea()
             } else {
                 SetupPrompt(output: output) { openSettings() }

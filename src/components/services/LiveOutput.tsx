@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DisplayLights } from "@/components/services/LinkLights";
 import { useStayAwake } from "@/lib/services/awake";
 import { publishLive, useLiveState, usePresence } from "@/lib/services/live";
+import { throughLimiter } from "@/lib/services/limiter";
 import { slideAt } from "@/lib/songs/slides";
-import type { LiveState } from "@/lib/live/protocol";
+import { asGain, type LiveState } from "@/lib/live/protocol";
 import type { PresentItem } from "@/lib/services/present";
 
 /**
@@ -55,8 +56,15 @@ function usePlayback(serviceId: string, state: LiveState, item: PresentItem | nu
     }
 
     started.current = true;
-    const element = new Audio(url);
+    const element = new Audio();
+    // Before the source, or the browser fetches it without CORS and the
+    // limiter's graph comes out silent.
+    element.crossOrigin = "anonymous";
+    element.src = url;
+    element.volume = asGain(latest.current.volume);
     audio.current = element;
+
+    const closeGraph = throughLimiter(element);
 
     const follow = () => {
       // Only while it is genuinely running. A blocked or failed start leaves
@@ -86,9 +94,15 @@ function usePlayback(serviceId: string, state: LiveState, item: PresentItem | nu
     return () => {
       clearInterval(timer);
       element.pause();
+      closeGraph?.();
       audio.current = null;
     };
   }, [elsewhere, serviceId, state.playing, url, slides, offset]);
+
+  // Turned from the remote, mid-song, by somebody who can hear the room.
+  useEffect(() => {
+    if (audio.current) audio.current.volume = asGain(state.volume);
+  }, [state.volume]);
 }
 
 /**
@@ -101,10 +115,12 @@ function usePlayback(serviceId: string, state: LiveState, item: PresentItem | nu
 function FilmScreen({
   url,
   playing,
+  volume,
   onEnded,
 }: {
   url: string;
   playing: boolean;
+  volume: number;
   onEnded: () => void;
 }) {
   const video = useRef<HTMLVideoElement | null>(null);
@@ -113,9 +129,10 @@ function FilmScreen({
     const element = video.current;
     if (!element) return;
 
+    element.volume = asGain(volume);
     if (playing) void element.play().catch(() => undefined);
     else element.pause();
-  }, [playing, url]);
+  }, [playing, url, volume]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
@@ -213,6 +230,28 @@ export function useFullscreenKey(): void {
 }
 
 /**
+ * The override, at the machine itself.
+ *
+ * Whoever is standing next to the projector needs to be able to stop the music
+ * without finding the person holding the remote — the microphone fed back, or
+ * the wrong song is playing, or somebody has started speaking over it. The two
+ * things worth reaching for are pause and blank, and they are the same keys the
+ * remote uses, which is also how the menu-bar item in the Mac app reaches them.
+ */
+function useOverrideKeys(serviceId: string, state: LiveState): void {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if (key === "p") publishLive(serviceId, { playing: !state.playing });
+      else if (key === "b") publishLive(serviceId, { blank: !state.blank });
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [serviceId, state.blank, state.playing]);
+}
+
+/**
  * `2026-08-16` -> `Sunday, August 16`.
  *
  * Read from the back of a room, so the weekday is spelled out and the year is
@@ -258,6 +297,7 @@ export default function LiveOutput({
   const presence = usePresence(serviceId, "display");
   const soundAllowed = useSoundAllowed();
   useStayAwake();
+  useOverrideKeys(serviceId, state);
   useFullscreenKey();
   const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const playing = state.itemId ? byId.get(state.itemId) : undefined;
@@ -284,6 +324,7 @@ export default function LiveOutput({
       <FilmScreen
         url={film}
         playing={state.playing}
+        volume={state.volume}
         onEnded={() => publishLive(serviceId, { playing: false })}
       />
     );

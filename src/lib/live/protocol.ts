@@ -40,6 +40,16 @@ export type LiveState = {
    * needs to see what is coming without the room seeing it yet.
    */
   armedItemId: string | null;
+  /**
+   * How loud the recordings play, 0 to 100.
+   *
+   * Set from the remote and obeyed by the machine at the projector, because the
+   * person who can hear that it is too loud is standing in the room rather than
+   * at the computer. Below it sits a limiter the operator never sees, so the
+   * one song mastered eight decibels hotter than the rest cannot arrive at
+   * eight decibels louder.
+   */
+  volume: number;
 };
 
 export const IDLE_STATE: LiveState = {
@@ -48,7 +58,11 @@ export const IDLE_STATE: LiveState = {
   blank: false,
   playing: false,
   armedItemId: null,
+  volume: 85,
 };
+
+/** Volume as the audio elements want it. */
+export const asGain = (volume: number) => Math.min(100, Math.max(0, volume)) / 100;
 
 /** Who is talking. A service has one display and any number of controllers. */
 export type DeviceRole = "display" | "stage" | "control";

@@ -272,6 +272,31 @@ export default function LiveControl({
             other end of all this. */}
         <OperatorLights presence={presence} />
 
+        {/* Turned from here because the person who can hear that it is too
+            loud is standing in the room, not at the computer. Under it, on the
+            machine itself, a limiter nobody has to think about: the one song
+            mastered far hotter than the rest cannot arrive far louder. */}
+        <label className="flex min-w-48 flex-1 items-center gap-2 text-xs text-stone-500">
+          <button
+            type="button"
+            onClick={() => publish({ volume: state.volume === 0 ? 85 : 0 })}
+            className="shrink-0 rounded-md px-1.5 py-1 text-base leading-none hover:bg-stone-100 dark:hover:bg-stone-800"
+            aria-label={state.volume === 0 ? "Sound off — turn it back on" : "Silence the sound"}
+          >
+            {state.volume === 0 ? "🔇" : "🔊"}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={state.volume}
+            onChange={(event) => publish({ volume: Number(event.target.value) })}
+            className="min-w-24 flex-1 accent-amber-700"
+          />
+          <span className="w-8 shrink-0 text-right tabular-nums">{state.volume}</span>
+        </label>
+
         {/* Second windows belong on the machine wired to the projector. On the
             phone in somebody's hand, these would put the congregation's screen
             on the phone and nowhere else. */}

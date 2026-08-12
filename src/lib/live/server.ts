@@ -42,6 +42,7 @@ export async function readLiveState(serviceId: string): Promise<LiveState> {
     blank: row.blank,
     playing: row.playing,
     armedItemId: row.armedItemId,
+    volume: row.volume,
   };
 }
 
@@ -55,6 +56,7 @@ export async function writeLiveState(serviceId: string, state: LiveState): Promi
       blank: state.blank,
       playing: state.playing,
       armedItemId: state.armedItemId,
+      volume: state.volume,
     })
     .onConflictDoUpdate({
       target: liveStates.serviceId,
@@ -64,6 +66,7 @@ export async function writeLiveState(serviceId: string, state: LiveState): Promi
         blank: state.blank,
         playing: state.playing,
         armedItemId: state.armedItemId,
+        volume: state.volume,
         updatedAt: new Date(),
       },
     });
