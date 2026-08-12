@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
 import { publishLive, useLiveState } from "@/lib/services/live";
 import { slideAt } from "@/lib/songs/slides";
@@ -130,6 +131,25 @@ function FilmScreen({
 }
 
 /**
+ * Fetch the slides again while nothing is up, so their links stay alive.
+ *
+ * Every recording and picture on this page is a bucket URL signed when the page
+ * loaded, and signatures expire. A projector window opened the night before is
+ * the ordinary case, not the unusual one — so it quietly refetches while the
+ * screen is empty, and never, ever while something is on it.
+ */
+function useFreshLinks(idle: boolean): void {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!idle) return;
+
+    const timer = setInterval(() => router.refresh(), 60 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [idle, router]);
+}
+
+/**
  * F fills the screen, F again gives it back.
  *
  * The window is dragged onto a projector and then wants to lose its title bar,
@@ -176,6 +196,7 @@ export default function LiveOutput({
   const playing = state.itemId ? byId.get(state.itemId) : undefined;
 
   usePlayback(serviceId, state, playing ?? null);
+  useFreshLinks(!state.itemId && !state.playing);
 
   const item = state.itemId ? byId.get(state.itemId) : undefined;
   // Clamped: an index past the end used to fall through to the idle screen,

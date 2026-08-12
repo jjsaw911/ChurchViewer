@@ -12,7 +12,16 @@ import { env } from "@/lib/env";
  */
 const GCS_PREFIX = "gcs:";
 
-const READ_URL_TTL_MS = 6 * 60 * 60 * 1000;
+/**
+ * A day, because of Sunday morning.
+ *
+ * The window on the projector is opened whenever whoever unlocks the building
+ * gets there, and the slides it holds were signed when the page loaded. At six
+ * hours, a machine set up on Saturday evening reaches the second song and finds
+ * every recording expired — with a room watching and nobody who knows that
+ * reloading the page would fix it.
+ */
+const READ_URL_TTL_MS = 24 * 60 * 60 * 1000;
 const UPLOAD_URL_TTL_MS = 30 * 60 * 1000;
 
 let client: Storage | null = null;
