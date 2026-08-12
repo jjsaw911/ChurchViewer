@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { OperatorLights } from "@/components/services/LinkLights";
 import { useStayAwake } from "@/lib/services/awake";
+import { useNativeStatus } from "@/lib/services/native";
 import ScreenPreview from "@/components/services/ScreenPreview";
 import { publishLive, useLiveState, usePresence } from "@/lib/services/live";
 import type { LiveState } from "@/lib/live/protocol";
@@ -215,6 +216,13 @@ export default function LiveControl({
     [before, items, liveItem, publish, show, state.armedItemId, state.slideIndex],
   );
 
+  // What the app's own buttons along the bottom show, when there is one.
+  useNativeStatus({
+    blank: state.blank,
+    playing: state.playing,
+    canPlay: Boolean(liveItem && plays(liveItem)),
+  });
+
   /** The last slide of the item — where Next stops being "next slide". */
   const atEnd = liveItem ? state.slideIndex >= liveItem.slides.length - 1 : false;
 
@@ -276,7 +284,7 @@ export default function LiveControl({
             loud is standing in the room, not at the computer. Under it, on the
             machine itself, a limiter nobody has to think about: the one song
             mastered far hotter than the rest cannot arrive far louder. */}
-        <label className="flex min-w-48 flex-1 items-center gap-2 text-xs text-stone-500">
+        <label className="flex w-full max-w-64 items-center gap-2 text-xs text-stone-500 sm:w-auto">
           <button
             type="button"
             onClick={() => publish({ volume: state.volume === 0 ? 85 : 0 })}
@@ -292,7 +300,7 @@ export default function LiveControl({
             step={5}
             value={state.volume}
             onChange={(event) => publish({ volume: Number(event.target.value) })}
-            className="min-w-24 flex-1 accent-amber-700"
+            className="w-full min-w-20 accent-amber-700"
           />
           <span className="w-8 shrink-0 text-right tabular-nums">{state.volume}</span>
         </label>
@@ -348,8 +356,11 @@ export default function LiveControl({
                   </div>
 
                   {/* Exactly what the room is seeing, at the shape of the
-                      actual screen — big enough to read a lyric off. */}
-                  <ScreenPreview
+                      actual screen. Big enough to read a lyric off, capped
+                      before it fills a tablet and pushes the buttons under the
+                      fold — the point of it is to be looked at *with* them. */}
+                  <div className="mx-auto w-full max-w-xl">
+                   <ScreenPreview
                     size="full"
                     aspect={screenAspect}
                     slide={onScreen}
@@ -361,9 +372,10 @@ export default function LiveControl({
                         : null
                     }
                     video={item.attachment?.kind === "video"}
-                  />
+                   />
+                  </div>
 
-                  <div className="flex flex-wrap gap-2 pt-3">
+                  <div className="mx-auto flex w-full max-w-xl flex-wrap gap-2 pt-3">
                     <button
                       type="button"
                       onClick={() => step(-1)}

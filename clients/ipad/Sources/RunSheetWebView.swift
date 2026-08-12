@@ -13,11 +13,16 @@ struct RunSheetWebView: UIViewRepresentable {
     let reloadToken: Int
     /// Handed back so the buttons below can talk to the page.
     let onReady: (WKWebView) -> Void
+    /// What the page says is true, so the buttons can show it.
+    let onStatus: (LiveStatus) -> Void
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.allowsInlineMediaPlayback = true
+        // The page posts here whenever what's on the screen changes. Without
+        // it, Blank is a button that changes no colour whatever it does.
+        configuration.userContentController.add(context.coordinator, name: "live")
 
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
@@ -40,16 +45,34 @@ struct RunSheetWebView: UIViewRepresentable {
         }
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(url: url, reloadToken: reloadToken) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(url: url, reloadToken: reloadToken, onStatus: onStatus)
+    }
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var loadedURL: URL
         var reloadToken: Int
+        private let onStatus: (LiveStatus) -> Void
         private var retries = 0
 
-        init(url: URL, reloadToken: Int) {
+        init(url: URL, reloadToken: Int, onStatus: @escaping (LiveStatus) -> Void) {
             self.loadedURL = url
             self.reloadToken = reloadToken
+            self.onStatus = onStatus
+        }
+
+        func userContentController(
+            _ controller: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            guard let body = message.body as? [String: Any] else { return }
+            onStatus(
+                LiveStatus(
+                    blank: body["blank"] as? Bool ?? false,
+                    playing: body["playing"] as? Bool ?? false,
+                    canPlay: body["canPlay"] as? Bool ?? false
+                )
+            )
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { retries = 0 }
