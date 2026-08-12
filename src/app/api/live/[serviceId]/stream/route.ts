@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
+import { joinService, presenceOf, watchPresence } from "@/lib/live/presence";
 import { authorizeService, readLiveState, watchLiveState } from "@/lib/live/server";
-import { envelope, type DisplayMessage } from "@/lib/live/protocol";
+import { envelope, type DeviceRole, type DisplayMessage } from "@/lib/live/protocol";
 
 /**
  * The live channel: server-sent events, one stream per watcher.
@@ -24,6 +25,13 @@ export async function GET(
   { params }: { params: Promise<{ serviceId: string }> },
 ) {
   const { serviceId } = await params;
+
+  // What this connection is: the projector, the stage monitor, or somebody
+  // driving. Anything unrecognised counts as a driver, which is the harmless
+  // answer — an extra remote in the count, never a projector that isn't there.
+  const asked = request.nextUrl.searchParams.get("role");
+  const role: DeviceRole =
+    asked === "display" || asked === "stage" || asked === "control" ? asked : "control";
 
   const allowed = await authorizeService(serviceId);
   if (!allowed.ok) {
@@ -52,6 +60,15 @@ export async function GET(
         send({ type: "state", state, serviceId }),
       );
 
+      // Joining is itself news: the operator's dot for the projector turns
+      // green the moment the projector's window opens, and everyone including
+      // this connection is told who is now here.
+      const leave = joinService(serviceId, role);
+      const unwatchPresence = watchPresence(serviceId, (presence) =>
+        send({ type: "presence", presence, serviceId }),
+      );
+      send({ type: "presence", presence: presenceOf(serviceId), serviceId });
+
       const keepalive = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(": keepalive\n\n"));
@@ -63,6 +80,8 @@ export async function GET(
       request.signal.addEventListener("abort", () => {
         clearInterval(keepalive);
         unwatch();
+        unwatchPresence();
+        leave();
         try {
           controller.close();
         } catch {

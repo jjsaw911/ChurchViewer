@@ -1,10 +1,13 @@
 import { useCallback, useSyncExternalStore } from "react";
 import {
   IDLE_STATE,
+  NOBODY,
   isUnderstood,
+  type DeviceRole,
   type DisplayMessage,
   type Envelope,
   type LiveState,
+  type Presence,
 } from "@/lib/live/protocol";
 
 export type { LiveState };
@@ -30,6 +33,8 @@ export const IDLE = IDLE_STATE;
 
 type Entry = {
   state: LiveState;
+  /** Who else is on this service, as last heard from the server. */
+  presence: Presence;
   listeners: Set<() => void>;
   source?: EventSource;
   /**
@@ -46,7 +51,7 @@ function entryFor(serviceId: string): Entry {
   const existing = services.get(serviceId);
   if (existing) return existing;
 
-  const created: Entry = { state: IDLE_STATE, listeners: new Set() };
+  const created: Entry = { state: IDLE_STATE, presence: NOBODY, listeners: new Set() };
   services.set(serviceId, created);
   return created;
 }
@@ -153,13 +158,38 @@ function flush(serviceId: string): void {
 }
 
 /**
- * What should be on screen, in any window.
+ * Take a new roll-call.
  *
- * The first subscriber for a service opens the shared connections and seeds
- * from storage; the last one to leave closes them.
+ * Same identity rule as the state: an unchanged count has to keep the object it
+ * already had, or a dot re-renders every time somebody's keepalive lands.
  */
-export function useLiveState(serviceId: string): LiveState {
-  const subscribe = useCallback(
+function acceptPresence(serviceId: string, presence: Presence): void {
+  const entry = entryFor(serviceId);
+  const now = entry.presence;
+  if (
+    now.display === presence.display &&
+    now.stage === presence.stage &&
+    now.control === presence.control
+  ) {
+    return;
+  }
+
+  entry.presence = presence;
+  for (const listener of entry.listeners) listener();
+}
+
+/**
+ * Join the service, and stay joined for as long as anything is watching.
+ *
+ * The first subscriber opens the shared connections and seeds from storage; the
+ * last one to leave closes them, which is also what tells everybody else that
+ * this device has gone.
+ */
+function useChannel(
+  serviceId: string,
+  role: DeviceRole,
+): (onChange: () => void) => () => void {
+  return useCallback(
     (onChange: () => void) => {
       const entry = entryFor(serviceId);
       const first = entry.listeners.size === 0;
@@ -180,17 +210,24 @@ export function useLiveState(serviceId: string): LiveState {
         // EventSource reconnects by itself, which is the whole reason for it:
         // a projector that dropped its wifi for ten seconds must come back
         // without anybody noticing.
-        const source = new EventSource(`/api/live/${serviceId}/stream`);
+        const source = new EventSource(`/api/live/${serviceId}/stream?role=${role}`);
         source.onopen = () => flush(serviceId);
         source.onmessage = (event) => {
           try {
             const parsed = JSON.parse(event.data) as Envelope<DisplayMessage>;
             if (!isUnderstood(parsed)) return;
             if (parsed.message.type === "state") accept(serviceId, parsed.message.state);
+            else if (parsed.message.type === "presence") {
+              acceptPresence(serviceId, parsed.message.presence);
+            }
           } catch {
             // A malformed frame is not worth taking the screen down for.
           }
         };
+        // Our own connection has dropped, so we no longer know who is out
+        // there. Saying nobody is honest; leaving the dots green would be a
+        // light that means "it was fine when we last looked".
+        source.onerror = () => acceptPresence(serviceId, NOBODY);
         entry.source = source;
       }
 
@@ -201,15 +238,33 @@ export function useLiveState(serviceId: string): LiveState {
         if (entry.listeners.size === 0) {
           entry.source?.close();
           entry.source = undefined;
+          entry.presence = NOBODY;
         }
       };
     },
-    [serviceId],
+    [role, serviceId],
   );
+}
 
+/** What should be on screen, in any window. */
+export function useLiveState(serviceId: string, role: DeviceRole = "control"): LiveState {
   return useSyncExternalStore(
-    subscribe,
+    useChannel(serviceId, role),
     () => entryFor(serviceId).state,
     () => IDLE_STATE,
+  );
+}
+
+/**
+ * Who else is connected to this service.
+ *
+ * Counted by the server from the streams it is holding open, which is the only
+ * honest measure — a window somebody closed is a stream that ended.
+ */
+export function usePresence(serviceId: string, role: DeviceRole = "control"): Presence {
+  return useSyncExternalStore(
+    useChannel(serviceId, role),
+    () => entryFor(serviceId).presence,
+    () => NOBODY,
   );
 }

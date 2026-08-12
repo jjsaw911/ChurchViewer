@@ -10,27 +10,30 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var typed = ""
 
+    private var preview: String {
+        let name = Settings.name(in: typed)
+        return name.isEmpty ? "" : "\(name).\(Settings.rootDomain)"
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                Section("Church address") {
-                    TextField("yourchurch.churchviewer.com", text: $typed)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
+                Section("Church") {
+                    HStack(spacing: 4) {
+                        TextField("yourchurch", text: $typed)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.asciiCapable)
 
-                    Button("Paste") {
-                        if let clipboard = UIPasteboard.general.string {
-                            typed = clipboard.trimmingCharacters(in: .whitespacesAndNewlines)
-                        }
+                        Text(".\(Settings.rootDomain)")
+                            .foregroundStyle(.secondary)
                     }
 
-                    Text(
-                        "Just the address opens the list of plans. Paste a run sheet address "
-                        + "instead to go straight to one service."
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    if !preview.isEmpty {
+                        Text("Opens \(preview)\(Settings.plansPath)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section {
@@ -47,13 +50,13 @@ struct SettingsView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
-                        let trimmed = typed.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmed.isEmpty { settings.runSheetURL = trimmed }
+                        let name = Settings.name(in: typed)
+                        if !name.isEmpty { settings.church = name }
                         dismiss()
                     }
                 }
             }
-            .onAppear { typed = settings.runSheetURL }
+            .onAppear { typed = settings.church }
         }
     }
 }

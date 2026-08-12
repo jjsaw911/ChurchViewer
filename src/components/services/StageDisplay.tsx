@@ -21,7 +21,9 @@ export default function StageDisplay({
   serviceTitle: string;
   items: PresentItem[];
 }) {
-  const state = useLiveState(serviceId);
+  // Registered as the stage monitor, so the operator's run sheet can show a
+  // light for it rather than the church wondering whether it is on.
+  const state = useLiveState(serviceId, "stage");
   useFullscreenKey();
   const now = useNow();
 

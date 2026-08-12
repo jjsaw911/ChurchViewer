@@ -51,7 +51,28 @@ export const IDLE_STATE: LiveState = {
 };
 
 /** Who is talking. A service has one display and any number of controllers. */
-export type DeviceRole = "display" | "control";
+export type DeviceRole = "display" | "stage" | "control";
+
+/**
+ * Who is actually connected right now, counted by role.
+ *
+ * The point of this is a light somebody can look at. Between the iPad in a
+ * hand and the Mac at the projector there is a network, a login and a browser
+ * window that may or may not still be open, and none of that is visible from
+ * either end — so pressing Next and seeing nothing happen looks exactly like
+ * the app being broken. A dot that was already red says which half to go and
+ * look at, before the service rather than during it.
+ */
+export type Presence = {
+  /** Machines showing the congregation's screen. */
+  display: number;
+  /** Confidence monitors facing the platform. */
+  stage: number;
+  /** Remotes and run sheets — anybody driving. */
+  control: number;
+};
+
+export const NOBODY: Presence = { display: 0, stage: 0, control: 0 };
 
 /**
  * What a controller sends.
@@ -72,7 +93,9 @@ export type ControlMessage =
 export type DisplayMessage =
   | { type: "state"; state: LiveState; serviceId: string }
   /** The plan changed underneath everyone — refetch rather than patch. */
-  | { type: "planChanged"; serviceId: string };
+  | { type: "planChanged"; serviceId: string }
+  /** Somebody joined or left. Sent to everyone, including the one who did. */
+  | { type: "presence"; presence: Presence; serviceId: string };
 
 export type Envelope<T> = {
   version: number;

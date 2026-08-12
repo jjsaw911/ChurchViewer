@@ -156,7 +156,7 @@ private struct SetupView: View {
             Text("ChurchViewer Remote").font(.largeTitle.weight(.semibold))
 
             Text(
-                "Your church's address. It opens on the list of plans, and you'll be asked "
+                "Your church's name. It opens on the list of plans, and you'll be asked "
                 + "to sign in once."
             )
             .font(.body)
@@ -164,20 +164,33 @@ private struct SetupView: View {
             .multilineTextAlignment(.center)
             .frame(maxWidth: 520)
 
-            TextField("yourchurch.churchviewer.com", text: $typed)
-                .textFieldStyle(.roundedBorder)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .keyboardType(.URL)
-                .frame(maxWidth: 520)
+            // The name and nothing else. The rest of the address is the same
+            // for every church, so it's printed rather than typed.
+            HStack(spacing: 6) {
+                TextField("yourchurch", text: $typed)
+                    .textFieldStyle(.roundedBorder)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.asciiCapable)
+                    .submitLabel(.go)
+                    .onSubmit(connect)
 
-            Button("Connect") {
-                settings.runSheetURL = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+                Text(".\(Settings.rootDomain)")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .frame(maxWidth: 520)
+
+            Button("Connect", action: connect)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(Settings.name(in: typed).isEmpty)
         }
         .padding(40)
+    }
+
+    private func connect() {
+        let name = Settings.name(in: typed)
+        if !name.isEmpty { settings.church = name }
     }
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { OperatorLights } from "@/components/services/LinkLights";
 import ScreenPreview from "@/components/services/ScreenPreview";
-import { publishLive, useLiveState } from "@/lib/services/live";
+import { publishLive, useLiveState, usePresence } from "@/lib/services/live";
 import type { LiveState } from "@/lib/live/protocol";
 import type { PresentItem } from "@/lib/services/present";
 
@@ -52,7 +53,8 @@ export default function LiveControl({
   items: PresentItem[];
   screenAspect: string;
 }) {
-  const state = useLiveState(serviceId);
+  const state = useLiveState(serviceId, "control");
+  const presence = usePresence(serviceId, "control");
   const secondScreens = useSecondScreens();
 
   const liveItem = items.find((item) => item.id === state.itemId) ?? null;
@@ -204,6 +206,10 @@ export default function LiveControl({
         </div>
 
         <div className="min-w-0 flex-1 space-y-2">
+          {/* Before anything else on the page: whether there is anything on
+              the other end of all this. */}
+          <OperatorLights presence={presence} />
+
           <p className="text-sm text-stone-500">
             {state.blank
               ? "Screen is blank"

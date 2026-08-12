@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
-import { publishLive, useLiveState } from "@/lib/services/live";
+import { DisplayLights } from "@/components/services/LinkLights";
+import { publishLive, useLiveState, usePresence } from "@/lib/services/live";
 import { slideAt } from "@/lib/songs/slides";
 import type { LiveState } from "@/lib/live/protocol";
 import type { PresentItem } from "@/lib/services/present";
@@ -190,7 +191,8 @@ export default function LiveOutput({
   items: PresentItem[];
   fallbackBackground?: string | null;
 }) {
-  const state = useLiveState(serviceId);
+  const state = useLiveState(serviceId, "display");
+  const presence = usePresence(serviceId, "display");
   useFullscreenKey();
   const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const playing = state.itemId ? byId.get(state.itemId) : undefined;
@@ -274,9 +276,14 @@ export default function LiveOutput({
         // the screen has nothing on it but the words.
         // Idle means black. A title card is still something the room can
         // read, and the point of "nothing on screen" is nothing on screen.
-        <p className="text-[0.6rem] tracking-[0.2em] text-white/10 uppercase">
-          {serviceTitle} · F for full screen
-        </p>
+        // Whether a remote has found this screen, said only while the screen
+        // is empty — it can never be up in front of anybody.
+        <div className="flex flex-col items-center gap-3 text-white/25">
+          <DisplayLights presence={presence} />
+          <p className="text-[0.6rem] tracking-[0.2em] text-white/10 uppercase">
+            {serviceTitle} · F for full screen
+          </p>
+        </div>
       )}
     </div>
   );
