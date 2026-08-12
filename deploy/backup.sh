@@ -41,9 +41,15 @@ set +a
 # one an administrator logs into by hand.
 export CLOUDSDK_CONFIG="${CLOUDSDK_CONFIG:-$BACKUP_DIR/.gcloud}"
 mkdir -p "$CLOUDSDK_CONFIG"
-if ! gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null | grep -q .; then
-  gcloud --quiet auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-fi
+
+# Named outright, and activated every time. On a VM, gcloud will happily report
+# the machine's own metadata account as active — which is the read-only one, so
+# an "is anything logged in?" check passes and the upload then fails at the
+# bucket. Asking for this account by name is the only way to be sure of it.
+CLOUDSDK_CORE_ACCOUNT="$(python3 -c 'import json,os,sys; print(json.load(open(os.environ["GOOGLE_APPLICATION_CREDENTIALS"]))["client_email"])')"
+export CLOUDSDK_CORE_ACCOUNT
+gcloud --quiet auth activate-service-account "$CLOUDSDK_CORE_ACCOUNT" \
+  --key-file="$GOOGLE_APPLICATION_CREDENTIALS" >/dev/null
 
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 dump="$BACKUP_DIR/churchviewer-$stamp.dump"
