@@ -99,7 +99,14 @@ export async function presentItems(
         // Always resolved, even where the recording isn't: a picture is content
         // for the screen, not something only the operator plays.
         attachment: await resolveAttachment(item.mediaUrl),
-        backgroundUrl: (await playbackUrl(item.backgroundSrc)) ?? serviceBackground,
+        // The activity's own picture, then the song's, then the service's,
+        // then black. Most specific wins, which is the order somebody would
+        // say it out loud: "this one has its own", "that song always looks
+        // like this", "everything else matches the service".
+        backgroundUrl:
+          (await playbackUrl(item.backgroundSrc)) ??
+          (await playbackUrl(item.songBackgroundSrc)) ??
+          serviceBackground,
         videoId,
         audioUrl,
         timingOffsetMs: item.songTimingOffsetMs ?? 0,

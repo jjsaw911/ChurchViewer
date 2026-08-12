@@ -76,6 +76,8 @@ export async function loadPlanItems(serviceId: string) {
       songSourceUrl: songs.sourceUrl,
       songAudioSrc: songs.audioSrc,
       songTimingOffsetMs: songs.timingOffsetMs,
+      /** The song's own picture, behind its words wherever it is sung. */
+      songBackgroundSrc: songs.backgroundSrc,
       slides: serviceItems.slides,
       mediaUrl: serviceItems.mediaUrl,
       backgroundSrc: serviceItems.backgroundSrc,
@@ -109,9 +111,12 @@ export async function withAttachments(
       ...row,
       attachment: await resolveAttachment(row.mediaUrl),
       songAudioUrl: row.songId ? await playbackUrl(row.songAudioSrc) : null,
-      // An activity's own background, or the service's behind it — the same
-      // rule the screen itself follows.
-      backgroundUrl: (await playbackUrl(row.backgroundSrc)) ?? serviceBackground,
+      // This activity's own, then the song's, then the service's — the same
+      // order the screen itself follows.
+      backgroundUrl:
+        (await playbackUrl(row.backgroundSrc)) ??
+        (await playbackUrl(row.songBackgroundSrc)) ??
+        serviceBackground,
     })),
   );
 }

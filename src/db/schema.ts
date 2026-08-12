@@ -228,6 +228,18 @@ export const songs = pgTable(
      * fetch the original from YouTube Studio and put it here.
      */
     videoSrc: text("video_src"),
+    /**
+     * The picture behind this song's words, wherever it is sung.
+     *
+     * A song is the thing a church uses again and again — the same one every
+     * few weeks for years — and its background belongs to it rather than to
+     * one Sunday. Setting it on the activity instead means setting it again
+     * every time the song comes round, which is how it ends up not being set.
+     *
+     * An activity's own background still wins over this, for the week the song
+     * is part of something with its own look.
+     */
+    backgroundSrc: text("background_src"),
     durationSeconds: integer("duration_seconds").notNull().default(0),
     status: songStatusEnum("status").notNull().default("draft"),
     /**

@@ -111,6 +111,7 @@ export default async function EditSongPage({
               sourceUrl: song.sourceUrl,
               audioSrc: song.audioSrc,
               videoSrc: song.videoSrc,
+              backgroundSrc: song.backgroundSrc,
               durationSeconds: song.durationSeconds,
             }}
           />

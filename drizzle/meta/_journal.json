@@ -120,6 +120,13 @@
       "when": 1786501506833,
       "tag": "0016_sloppy_payback",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786510061187,
+      "tag": "0017_lean_dagger",
+      "breakpoints": true
     }
   ]
 }

@@ -72,6 +72,7 @@ export async function saveSongAction(_previous: SongState, formData: FormData): 
     sourceUrl,
     audioSrc: optional(formData, "audioSrc"),
     videoSrc: optional(formData, "videoSrc"),
+    backgroundSrc: optional(formData, "backgroundSrc"),
     durationSeconds: parseClock(value(formData, "duration")),
   };
 

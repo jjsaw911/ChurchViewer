@@ -268,7 +268,7 @@ export async function mediaUsage(churchId: string, location: string): Promise<nu
     select (
         (select count(*) from ${songs}
           where ${songs.churchId} = ${churchId}
-            and ${location} in (${songs.audioSrc}, ${songs.videoSrc}))
+            and ${location} in (${songs.audioSrc}, ${songs.videoSrc}, ${songs.backgroundSrc}))
       + (select count(*) from ${sermons}
           where ${sermons.churchId} = ${churchId}
             and ${location} in (${sermons.mediaSrc}, ${sermons.posterSrc}, ${sermons.captionsSrc}))

@@ -17,6 +17,7 @@ export type SongFormValues = {
   sourceUrl: string | null;
   audioSrc: string | null;
   videoSrc: string | null;
+  backgroundSrc: string | null;
   durationSeconds: number;
 };
 
@@ -110,6 +111,17 @@ export default function SongForm({
           />
         </div>
       </div>
+
+      <MediaField
+        name="backgroundSrc"
+        label="Background behind the words"
+        tenant={tenant}
+        defaultValue={initial("backgroundSrc", song?.backgroundSrc ?? "")}
+        accept="image/*"
+        kinds={["image"]}
+        uploadsEnabled={uploadsEnabled}
+        hint="Shown behind this song's lyrics every time it's sung, so it only has to be chosen once. A plan can still override it for one Sunday, and the service's own background is used when this is empty. The screen darkens whatever is here, but a quiet picture still reads better from the back than a busy one."
+      />
 
       <fieldset className="space-y-5 border-t border-stone-200 pt-6 dark:border-stone-800">
         <legend className="text-sm font-semibold">The recording</legend>
