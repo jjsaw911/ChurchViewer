@@ -66,7 +66,27 @@ function usePlayback(serviceId: string, state: LiveState, item: PresentItem | nu
 
     const closeGraph = throughLimiter(element);
 
+    // Marking it `anonymous` is what lets the limiter see it, and it is also a
+    // way to fail: a fetch the bucket won't answer cross-origin loads nothing
+    // at all. So if the load fails, it is tried again plainly — no CORS, no
+    // limiter, and sound.
+    element.addEventListener("error", () => {
+      closeGraph();
+      const plain = new Audio(url);
+      plain.volume = asGain(latest.current.volume);
+      audio.current = plain;
+      void plain.play().catch(() => {
+        started.current = false;
+        publishLive(serviceId, { playing: false });
+      });
+    });
+
     const follow = () => {
+      // Whichever element is actually playing — the first one, or the plain
+      // one that replaced it.
+      const element = audio.current;
+      if (!element) return;
+
       // Only while it is genuinely running. A blocked or failed start leaves
       // the position at zero, and following that would drag the screen back to
       // the first slide every quarter second — including over the operator.
@@ -93,8 +113,9 @@ function usePlayback(serviceId: string, state: LiveState, item: PresentItem | nu
 
     return () => {
       clearInterval(timer);
+      audio.current?.pause();
       element.pause();
-      closeGraph?.();
+      closeGraph();
       audio.current = null;
     };
   }, [elsewhere, serviceId, state.playing, url, slides, offset]);
