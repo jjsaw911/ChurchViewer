@@ -13,6 +13,10 @@ final class OutputSettings: ObservableObject {
     let name: String
     private let prefix: String
 
+    /// `screen` or `stage` — the only two things a window facing a room may
+    /// show. Whatever address is typed is bent to end in this one.
+    private let surface: String
+
     @Published var address: String {
         didSet { UserDefaults.standard.set(address, forKey: "\(prefix)URL") }
     }
@@ -27,9 +31,10 @@ final class OutputSettings: ObservableObject {
         didSet { UserDefaults.standard.set(fillOnLaunch, forKey: "\(prefix)FullScreen") }
     }
 
-    init(name: String, prefix: String, legacyURLKey: String? = nil) {
+    init(name: String, prefix: String, surface: String, legacyURLKey: String? = nil) {
         self.name = name
         self.prefix = prefix
+        self.surface = surface
 
         let defaults = UserDefaults.standard
         // An earlier version stored the projector under different names; a Mac
@@ -44,11 +49,44 @@ final class OutputSettings: ObservableObject {
             ?? defaults.bool(forKey: "fullScreenOnLaunch")
     }
 
+    /**
+     Where this window actually goes, which is never an ordinary page.
+
+     A window filling a projector can only ever show a presentation surface. Any
+     other address typed or pasted here is corrected to the matching one rather
+     than obeyed — paste the run sheet and the projector shows the screen for
+     that same service, not the run sheet with a menu across the top of it.
+
+     It is an easy mistake and an expensive one: the address of the page you are
+     driving from is exactly the address you have to hand, and the difference
+     between it and the right one is a word on the end.
+     */
     var url: URL? {
-        guard let url = URL(string: address), url.scheme?.hasPrefix("http") == true else {
-            return nil
-        }
-        return url
+        let typed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty else { return nil }
+
+        let withScheme = typed.contains("://") ? typed : "https://\(typed)"
+        guard var parts = URLComponents(string: withScheme), parts.host != nil else { return nil }
+        guard parts.scheme?.hasPrefix("http") == true else { return nil }
+
+        parts.query = nil
+        parts.fragment = nil
+        parts.path = OutputSettings.surfacePath(for: parts.path, surface: surface)
+        return parts.url
+    }
+
+    /// The presentation path nearest to whatever was typed.
+    static func surfacePath(for path: String, surface: String) -> String {
+        var parts = path.split(separator: "/").map(String.init)
+
+        // Not a service to present — the church's front page, the plans list,
+        // somebody's sermon, a song on its own. One sensible answer: today's.
+        let named = parts.count > 1 && (parts[1] == "today" || parts[1] == "services")
+        guard parts.first == "present", named else { return "/present/today/\(surface)" }
+
+        // Already ends in one surface or the other: swap it for this window's.
+        if parts.last == "screen" || parts.last == "stage" { parts.removeLast() }
+        return "/" + (parts + [surface]).joined(separator: "/")
     }
 
     var isConfigured: Bool { url != nil }
@@ -73,10 +111,15 @@ final class Settings: ObservableObject {
     static let stagePath = "/present/today/stage"
 
     /// What the room sees: words, over whatever background the plan carries.
-    let projector = OutputSettings(name: "Projector", prefix: "projector", legacyURLKey: "displayURL")
+    let projector = OutputSettings(
+        name: "Projector",
+        prefix: "projector",
+        surface: "screen",
+        legacyURLKey: "displayURL"
+    )
 
     /// What the platform sees: this slide, the next one, the notes, the clock.
-    let stage = OutputSettings(name: "Stage", prefix: "stage")
+    let stage = OutputSettings(name: "Stage", prefix: "stage", surface: "stage")
 
     @Published var openAtLogin: Bool {
         didSet { LoginItem.set(enabled: openAtLogin) }

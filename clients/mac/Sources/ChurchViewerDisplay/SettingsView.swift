@@ -102,7 +102,11 @@ private struct OutputSection: View {
             HStack {
                 Text(output.name).font(.headline)
                 Spacer()
-                Text(output.isConfigured ? (output.url?.host ?? "") : "not set")
+                // The address it will actually open, which is not always the
+                // one in the box — see `OutputSettings.url`.
+                Text(output.isConfigured ? (output.url?.absoluteString ?? "") : "not set")
+                    .lineLimit(1)
+                    .truncationMode(.head)
                     .font(.caption)
                     .foregroundStyle(output.isConfigured ? Color.secondary : Color.red)
             }
