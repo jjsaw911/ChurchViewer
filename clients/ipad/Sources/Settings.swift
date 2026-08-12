@@ -16,7 +16,17 @@ final class Settings: ObservableObject {
     /// Where every church lives. One place, so nothing else has to know it.
     static let rootDomain = "churchviewer.com"
 
-    /** The plans list — every service, each with a way into its run sheet. */
+    /**
+     Where the remote opens: whatever service the church is on.
+
+     The same address the projector uses, deliberately. Landing on a list means
+     somebody picks a service, and the Sunday they pick last week's the remote
+     and the screen are driving two different plans — which looks, from either
+     end, exactly like the app being broken.
+     */
+    static let runPath = "/present/today"
+
+    /** The plans list, for the weeks with two services or a change of mind. */
     static let plansPath = "/admin/services"
 
     @Published var church: String {
@@ -59,11 +69,15 @@ final class Settings: ObservableObject {
     var url: URL? {
         let name = Settings.name(in: church)
         guard !name.isEmpty else { return nil }
-        return URL(string: "https://\(name).\(Settings.rootDomain)\(Settings.plansPath)")
+        return URL(string: "https://\(name).\(Settings.rootDomain)\(Settings.runPath)")
     }
 
     /** The same church, back at the list, for switching between services. */
-    var plansURL: URL? { url }
+    var plansURL: URL? {
+        let name = Settings.name(in: church)
+        guard !name.isEmpty else { return nil }
+        return URL(string: "https://\(name).\(Settings.rootDomain)\(Settings.plansPath)")
+    }
 
     var isConfigured: Bool { url != nil }
 }

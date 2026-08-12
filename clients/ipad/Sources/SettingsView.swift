@@ -30,7 +30,7 @@ struct SettingsView: View {
                     }
 
                     if !preview.isEmpty {
-                        Text("Opens \(preview)\(Settings.plansPath)")
+                        Text("Opens \(preview)\(Settings.runPath)")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
