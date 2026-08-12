@@ -37,16 +37,35 @@ export async function POST(
   }
 
   const body = (await request.json().catch(() => null)) as Partial<LiveState> | null;
-  if (!body || typeof body.slideIndex !== "number") {
-    return NextResponse.json({ error: "Send itemId, slideIndex and blank." }, { status: 400 });
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Send what changed." }, { status: 400 });
   }
 
+  /**
+   * Only what was sent is changed. The rest is left as it is.
+   *
+   * This matters more than it looks. While a song plays, the display posts the
+   * slide it has reached several times a minute; if that carried a whole state,
+   * every one of those would overwrite whatever the operator did in between —
+   * pressing Blank mid-song would be undone a quarter of a second later. Now
+   * the display says "slide 7" and means only that.
+   */
+  const current = await readLiveState(serviceId);
+
   const state: LiveState = {
-    itemId: typeof body.itemId === "string" ? body.itemId : null,
-    slideIndex: Math.max(0, Math.round(body.slideIndex)),
-    blank: body.blank === true,
-    playing: body.playing === true,
-    armedItemId: typeof body.armedItemId === "string" ? body.armedItemId : null,
+    itemId: "itemId" in body ? (typeof body.itemId === "string" ? body.itemId : null) : current.itemId,
+    slideIndex:
+      typeof body.slideIndex === "number"
+        ? Math.max(0, Math.round(body.slideIndex))
+        : current.slideIndex,
+    blank: typeof body.blank === "boolean" ? body.blank : current.blank,
+    playing: typeof body.playing === "boolean" ? body.playing : current.playing,
+    armedItemId:
+      "armedItemId" in body
+        ? typeof body.armedItemId === "string"
+          ? body.armedItemId
+          : null
+        : current.armedItemId,
   };
 
   await writeLiveState(serviceId, state);

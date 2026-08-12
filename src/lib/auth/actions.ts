@@ -14,7 +14,7 @@ import {
 import { checkPasswordStrength, hashPassword, verifyPassword } from "@/lib/auth/password";
 import { completeReset, resolveResetToken } from "@/lib/auth/reset";
 import { createSession, destroySession, getSessionUser } from "@/lib/auth/session";
-import { rootUrl, tenantUrl } from "@/lib/env";
+import { env, rootUrl, tenantUrl } from "@/lib/env";
 import { slugify, validateSlug } from "@/lib/tenant";
 import { isSlugTaken } from "@/lib/churches";
 
@@ -32,11 +32,28 @@ export type FormState = {
 const value = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 
 /**
- * Only ever redirect to a path on this host. `//evil.com` is a protocol-relative
- * URL, so checking for a leading slash alone isn't enough.
+ * Only ever redirect somewhere that is us.
+ *
+ * A path on this host, or an address at a church of ours — logging in happens
+ * on the main site and the person was almost always on their church's own
+ * address when they were stopped, so sending them back means crossing hosts.
+ * `//evil.com` is a protocol-relative URL, so a leading slash alone isn't
+ * enough, and anything that isn't plainly ours is dropped for the fallback.
  */
 function safeNext(next: string, fallback: string): string {
-  return next.startsWith("/") && !next.startsWith("//") ? next : fallback;
+  if (next.startsWith("/") && !next.startsWith("//")) return next;
+
+  try {
+    const url = new URL(next);
+    const root = env.rootDomain.split(":")[0].toLowerCase();
+    const host = url.hostname.toLowerCase();
+
+    if (url.protocol !== "https:" && url.protocol !== "http:") return fallback;
+    if (host !== root && !host.endsWith(`.${root}`)) return fallback;
+    return url.toString();
+  } catch {
+    return fallback;
+  }
 }
 
 /**

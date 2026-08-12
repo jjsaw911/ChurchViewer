@@ -13,7 +13,15 @@ export function proxy(request: NextRequest) {
 
   const url = request.nextUrl.clone();
   url.pathname = `/s/${tenant}${request.nextUrl.pathname}`;
-  return NextResponse.rewrite(url);
+
+  // The address as it was actually typed, carried through the rewrite. A page
+  // that has to send someone to log in needs it to send them back afterwards,
+  // and by the time the page runs, the only path it can see is the rewritten
+  // one on a host nobody visited.
+  const headers = new Headers(request.headers);
+  headers.set("x-churchviewer-path", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+
+  return NextResponse.rewrite(url, { request: { headers } });
 }
 
 export const config = {

@@ -49,8 +49,18 @@ export type PresentItem = {
    * Whether the slides can follow the recording on their own. False as soon as
    * the activity carries slides of its own: those are typed for this service
    * and advanced by hand, and no recording knows when they should turn.
+   *
+   * It also needs a recording this machine can actually play — a file. A song
+   * whose only source is a link somewhere else is not followable here, however
+   * carefully its slides were timed.
    */
   followable: boolean;
+  /**
+   * Timed slides, but the only recording is a link off elsewhere. Worth saying
+   * out loud on the run sheet: it looks identical to a followable song and
+   * isn't, and the person finding that out at 10am should find it out now.
+   */
+  offsiteRecordingOnly: boolean;
 };
 
 export async function presentItems(
@@ -93,7 +103,11 @@ export async function presentItems(
         videoId,
         audioUrl,
         timingOffsetMs: item.songTimingOffsetMs ?? 0,
-        followable: usesSongSlides && Boolean(videoId || audioUrl),
+        // The audio file, specifically. The display plays a file; a YouTube link
+        // it cannot play, and slides that follow a recording nobody can start
+        // are slides that never move.
+        followable: usesSongSlides && Boolean(audioUrl),
+        offsiteRecordingOnly: usesSongSlides && !audioUrl && Boolean(videoId),
       } satisfies PresentItem;
     }),
   );

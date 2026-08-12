@@ -32,6 +32,12 @@ type Entry = {
   state: LiveState;
   listeners: Set<() => void>;
   source?: EventSource;
+  /**
+   * Changes the server never heard. Kept so that a window which lost the
+   * network mid-service can say them again the moment it comes back, instead of
+   * being told the old truth and dragging the projector backwards to it.
+   */
+  pending?: Partial<LiveState>;
 };
 
 const services = new Map<string, Entry>();
@@ -86,8 +92,15 @@ function parse(raw: string | null): LiveState | null {
   }
 }
 
-/** Put a new state up: locally at once, then everywhere else. */
-export function publishLive(serviceId: string, state: LiveState): void {
+/**
+ * Change what is on the screen.
+ *
+ * Takes only the fields that are changing. The server leaves the rest alone,
+ * so the display saying "slide 7" while a song plays cannot undo the Blank the
+ * operator pressed a moment earlier.
+ */
+export function publishLive(serviceId: string, patch: Partial<LiveState>): void {
+  const state: LiveState = { ...entryFor(serviceId).state, ...patch };
   accept(serviceId, state);
 
   try {
@@ -96,16 +109,47 @@ export function publishLive(serviceId: string, state: LiveState): void {
     // Storage blocked. The screen still changes; it just isn't remembered.
   }
 
+  send(serviceId, patch);
+}
+
+/**
+ * Tell the server, and remember if it didn't hear.
+ *
+ * Offline, or the server is having a moment: the window in front of the
+ * operator and the projector beside it are already right, and what was missed
+ * is held until the stream comes back.
+ */
+function send(serviceId: string, patch: Partial<LiveState>): void {
   void fetch(`/api/live/${serviceId}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(state),
+    body: JSON.stringify(patch),
     keepalive: true,
-  }).catch(() => {
-    // Offline, or the server is having a moment. The window in front of the
-    // operator and the projector beside it are already right; the machines
-    // across the room catch up when the stream reconnects.
-  });
+  })
+    .then((response) => {
+      if (!response.ok) hold(serviceId, patch);
+    })
+    .catch(() => hold(serviceId, patch));
+}
+
+function hold(serviceId: string, patch: Partial<LiveState>): void {
+  const entry = entryFor(serviceId);
+  entry.pending = { ...entry.pending, ...patch };
+}
+
+/**
+ * Say the missed changes again, on reconnecting.
+ *
+ * Without this, a reconnect is the server telling a window what was true before
+ * it dropped — and the projector, obediently, going back to it mid-song.
+ */
+function flush(serviceId: string): void {
+  const entry = entryFor(serviceId);
+  const patch = entry.pending;
+  if (!patch) return;
+
+  entry.pending = undefined;
+  send(serviceId, patch);
 }
 
 /**
@@ -137,6 +181,7 @@ export function useLiveState(serviceId: string): LiveState {
         // a projector that dropped its wifi for ten seconds must come back
         // without anybody noticing.
         const source = new EventSource(`/api/live/${serviceId}/stream`);
+        source.onopen = () => flush(serviceId);
         source.onmessage = (event) => {
           try {
             const parsed = JSON.parse(event.data) as Envelope<DisplayMessage>;

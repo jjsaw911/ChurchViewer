@@ -1,6 +1,7 @@
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { getMembershipRole, getSessionUser, type SessionUser } from "@/lib/auth/session";
-import { isPlatformAdminEmail, rootUrl } from "@/lib/env";
+import { isPlatformAdminEmail, rootUrl, tenantUrl } from "@/lib/env";
 import { getChurchBySlug } from "@/lib/churches";
 
 type Access = {
@@ -37,6 +38,18 @@ export async function resolveAccess(
 }
 
 /**
+ * Where this person was trying to get to, on the church's own address.
+ *
+ * The proxy leaves the original path in a header on its way past; without it a
+ * page only knows the rewritten `/s/<church>/…` form, on a hostname that exists
+ * nowhere outside the server.
+ */
+async function intendedUrl(slug: string): Promise<string> {
+  const path = (await headers()).get("x-churchviewer-path");
+  return tenantUrl(slug, path?.startsWith("/") ? path : "/admin");
+}
+
+/**
  * Gate for everything under `/admin`. Server actions must call this too — an
  * action is a public endpoint, and the page that rendered its form proves
  * nothing about who is submitting it.
@@ -46,7 +59,10 @@ export async function requireChurchAccess(tenant: string): Promise<Access> {
   if (!church) notFound();
 
   const user = await getSessionUser();
-  if (!user) redirect(rootUrl("/login"));
+  // Back to where they were headed, not to a list they then have to navigate
+  // out of. Someone opening the run sheet on Sunday morning is opening the run
+  // sheet, and being asked to sign in shouldn't cost them that.
+  if (!user) redirect(rootUrl(`/login?next=${encodeURIComponent(await intendedUrl(church.slug))}`));
 
   // Somebody else's password is still on this account. Nothing else opens
   // until they've chosen their own — otherwise "temporary" is whatever the

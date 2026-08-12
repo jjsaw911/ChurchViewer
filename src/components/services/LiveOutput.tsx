@@ -27,34 +27,106 @@ function usePlayback(serviceId: string, state: LiveState, item: PresentItem | nu
   const url = item?.followable ? item.audioUrl : null;
   const slides = item?.slides;
   const offset = item?.timingOffsetMs ?? 0;
+  // A film is playing in its own element on the screen below. Start means that
+  // one, and this must keep its hands off it.
+  const elsewhere = item?.slides.length === 0 && item?.attachment?.kind === "video";
+
+  // A display that opens mid-song must not start the track again from the top.
+  // It has no idea how far in the room already is, so it says so — the flag
+  // goes back to off and the operator presses Start when they mean it.
+  const started = useRef(false);
 
   useEffect(() => {
-    if (!state.playing || !url || !slides) return;
+    if (!state.playing) {
+      started.current = false;
+      return;
+    }
+    if (started.current) return;
+    if (elsewhere) return;
 
+    if (!url || !slides) {
+      // Told to play something this machine has no recording of. Say so by
+      // putting the flag back, so the operator's button doesn't sit there
+      // claiming a song is running.
+      publishLive(serviceId, { playing: false });
+      return;
+    }
+
+    started.current = true;
     const element = new Audio(url);
     audio.current = element;
 
     const follow = () => {
+      // Only while it is genuinely running. A blocked or failed start leaves
+      // the position at zero, and following that would drag the screen back to
+      // the first slide every quarter second — including over the operator.
+      if (element.paused || element.currentTime <= 0) return;
+
       const index = slideAt(slides, element.currentTime * 1000, offset);
       if (index < 0 || index === slide.current) return;
       slide.current = index;
-      publishLive(serviceId, { ...latest.current, slideIndex: index, playing: true });
+
+      // Only the slide. Anything else here would undo whatever the operator
+      // did between one tick and the next.
+      publishLive(serviceId, { slideIndex: index });
     };
 
     const timer = setInterval(follow, 250);
 
     // Autoplay is refused until a window has been interacted with. The Mac app
-    // allows it outright; a browser window needs one click first.
-    void element.play().catch(() => undefined);
+    // allows it outright; a browser window needs one click first — and if it is
+    // refused, the flag goes back so the operator can see it didn't take.
+    void element.play().catch(() => {
+      started.current = false;
+      publishLive(serviceId, { playing: false });
+    });
 
     return () => {
       clearInterval(timer);
       element.pause();
       audio.current = null;
     };
-    // Not the whole state: re-running on every slide change would restart the
-    // song from the top each time it turned a page.
-  }, [serviceId, state.playing, url, slides, offset]);
+  }, [elsewhere, serviceId, state.playing, url, slides, offset]);
+}
+
+/**
+ * A film on the projector: the picture, the sound, and nothing else.
+ *
+ * It runs and stops on the same instruction a song does, so the operator has
+ * one Start whatever the box turns out to hold. Left paused rather than rewound
+ * when they stop it, because stopping is nearly always so that it can carry on.
+ */
+function FilmScreen({
+  url,
+  playing,
+  onEnded,
+}: {
+  url: string;
+  playing: boolean;
+  onEnded: () => void;
+}) {
+  const video = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const element = video.current;
+    if (!element) return;
+
+    if (playing) void element.play().catch(() => undefined);
+    else element.pause();
+  }, [playing, url]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
+      <video
+        ref={video}
+        key={url}
+        src={url}
+        playsInline
+        onEnded={onEnded}
+        className="max-h-full max-w-full"
+      />
+    </div>
+  );
 }
 
 /**
@@ -106,10 +178,28 @@ export default function LiveOutput({
   usePlayback(serviceId, state, playing ?? null);
 
   const item = state.itemId ? byId.get(state.itemId) : undefined;
-  const slide = state.blank ? null : item?.slides[state.slideIndex];
+  // Clamped: an index past the end used to fall through to the idle screen,
+  // which reads as "the app broke" from the back of a room.
+  const slide = state.blank
+    ? null
+    : item?.slides[Math.min(state.slideIndex, item.slides.length - 1)];
   // A picture with nothing written over it is the whole slide.
   const picture =
     !state.blank && !slide && item?.attachment?.kind === "image" ? item.attachment.url : null;
+  // So is a film. It gets the screen and the sound, and the operator's Start is
+  // what runs it — the same press that starts a song.
+  const film =
+    !state.blank && !slide && item?.attachment?.kind === "video" ? item.attachment.url : null;
+
+  if (film) {
+    return (
+      <FilmScreen
+        url={film}
+        playing={state.playing}
+        onEnded={() => publishLive(serviceId, { playing: false })}
+      />
+    );
+  }
 
   if (picture) {
     return (

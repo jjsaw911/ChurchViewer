@@ -1,10 +1,31 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import ScreenPreview from "@/components/services/ScreenPreview";
 import { publishLive, useLiveState } from "@/lib/services/live";
 import type { LiveState } from "@/lib/live/protocol";
 import type { PresentItem } from "@/lib/services/present";
+
+/**
+ * Whether a second window opened from here would land somewhere useful.
+ *
+ * A mouse means a computer, and a computer at the projector is where the output
+ * and stage windows belong. A finger means the remote, where opening the
+ * congregation's screen would only cover the controls with it.
+ */
+function useSecondScreens(): boolean {
+  return useSyncExternalStore(
+    (notify) => {
+      const query = window.matchMedia("(pointer: fine)");
+      query.addEventListener("change", notify);
+      return () => query.removeEventListener("change", notify);
+    },
+    () => window.matchMedia("(pointer: fine)").matches,
+    // The server has no idea what it's being read on; assume the remote and let
+    // the buttons appear a moment later on a desktop.
+    () => false,
+  );
+}
 
 /**
  * The operator's screen: the day as a row of boxes, and what the room sees.
@@ -32,13 +53,25 @@ export default function LiveControl({
   screenAspect: string;
 }) {
   const state = useLiveState(serviceId);
+  const secondScreens = useSecondScreens();
 
   const liveItem = items.find((item) => item.id === state.itemId) ?? null;
   const armedItem = items.find((item) => item.id === state.armedItemId) ?? null;
 
-  /** Whether there's anything to put up: words, or a picture standing in. */
+  /** Whether there's anything to put up: words, a picture, or a film. */
   const showable = (item: PresentItem) =>
-    item.slides.length > 0 || item.attachment?.kind === "image";
+    item.slides.length > 0 ||
+    item.attachment?.kind === "image" ||
+    Boolean(item.attachment?.kind === "video" && item.attachment.url);
+
+  /** A film with the screen to itself — Start runs it, the same as a song. */
+  const film =
+    liveItem &&
+    liveItem.slides.length === 0 &&
+    liveItem.attachment?.kind === "video" &&
+    liveItem.attachment.url
+      ? liveItem
+      : null;
 
   /** The next thing worth arming after this one. */
   const after = useCallback(
@@ -50,17 +83,24 @@ export default function LiveControl({
     [items],
   );
 
+  /** The last thing worth showing before this one, for an overshot Next. */
+  const before = useCallback(
+    (itemId: string | null): PresentItem | null => {
+      const index = items.findIndex((item) => item.id === itemId);
+      if (index <= 0) return null;
+      return [...items.slice(0, index)].reverse().find(showable) ?? null;
+    },
+    [items],
+  );
+
+  /**
+   * Only what this press changes. While a song runs, the display is publishing
+   * the slide it has reached; sending a whole state from here would carry a
+   * slide number that was true a moment ago and shove the screen back to it.
+   */
   const publish = useCallback(
-    (next: Partial<LiveState>) =>
-      publishLive(serviceId, {
-        itemId: state.itemId,
-        slideIndex: state.slideIndex,
-        blank: state.blank,
-        playing: state.playing,
-        armedItemId: state.armedItemId,
-        ...next,
-      }),
-    [serviceId, state],
+    (next: Partial<LiveState>) => publishLive(serviceId, next),
+    [serviceId],
   );
 
   /** Put an item up, and line up whatever comes after it. */
@@ -78,9 +118,12 @@ export default function LiveControl({
   );
 
   /**
-   * Step a slide. At the end of an item this does *not* jump onward — it stops,
-   * with the next one armed, so nothing reaches the screen because somebody
-   * pressed Next once too often.
+   * Step a slide, and off the end of an item into the next one.
+   *
+   * Next has to do something every single time it is pressed. An announcement
+   * with one slide, or a picture with none, is at its end the moment it goes up
+   * — if the press stopped there, the button would be dead for that whole item
+   * and the person at the back would press it harder.
    */
   const step = useCallback(
     (delta: number) => {
@@ -91,13 +134,27 @@ export default function LiveControl({
       }
 
       const next = state.slideIndex + delta;
-      if (next >= 0 && next < Math.max(1, liveItem.slides.length)) {
+      if (next >= 0 && next < liveItem.slides.length) {
         publish({ slideIndex: next, blank: false });
+        return;
       }
+
+      // Forward off the end: the armed item takes the screen. Putting it up
+      // doesn't start its recording — that stays a separate, deliberate press.
+      if (delta > 0) {
+        if (state.armedItemId) show(state.armedItemId);
+        return;
+      }
+
+      // Backward off the front: the item before, at its last slide. Someone who
+      // pressed Next once too many needs the way back to be the same key.
+      const previous = before(liveItem.id);
+      if (previous) show(previous.id, Math.max(0, previous.slides.length - 1));
     },
-    [items, liveItem, publish, show, state.slideIndex],
+    [before, items, liveItem, publish, show, state.armedItemId, state.slideIndex],
   );
 
+  /** The last slide of the item — where Next stops being "next slide". */
   const atEnd = liveItem ? state.slideIndex >= liveItem.slides.length - 1 : false;
 
   useEffect(() => {
@@ -120,7 +177,11 @@ export default function LiveControl({
     return () => window.removeEventListener("keydown", onKey);
   }, [publish, state.blank, step]);
 
-  const onScreen = state.blank ? null : (liveItem?.slides[state.slideIndex] ?? null);
+  // Clamped, because the display publishes the slide the recording has reached
+  // and this window may still be a plan behind it.
+  const onScreen = state.blank
+    ? null
+    : (liveItem?.slides[Math.min(state.slideIndex, liveItem.slides.length - 1)] ?? null);
 
   return (
     <div className="space-y-5">
@@ -182,15 +243,17 @@ export default function LiveControl({
             <button
               type="button"
               onClick={() => step(1)}
-              disabled={atEnd}
+              // Only genuinely dead at the very end of the day, with nothing
+              // armed behind it.
+              disabled={atEnd && !armedItem}
               className="rounded-lg bg-amber-700 px-5 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-40"
             >
-              Next &rarr;
+              {atEnd && armedItem ? `Next: ${armedItem.title}` : "Next"} &rarr;
             </button>
 
             {/* Sound comes out of the machine at the projector. This is the
                 instruction to start it, not a player. */}
-            {liveItem?.followable ? (
+            {liveItem?.followable || film ? (
               <button
                 type="button"
                 onClick={() => publish({ playing: !state.playing })}
@@ -200,8 +263,13 @@ export default function LiveControl({
                     : "bg-emerald-700 text-white hover:bg-emerald-800"
                 }`}
               >
-                {state.playing ? "Stop the music" : "Start the music"}
+                {state.playing ? "Stop" : film ? "Play the video" : "Start the music"}
               </button>
+            ) : liveItem?.offsiteRecordingOnly ? (
+              <span className="self-center text-xs text-stone-500">
+                Timed to a recording that isn&rsquo;t on the church machine &mdash; move these
+                slides by hand.
+              </span>
             ) : null}
 
             <button
@@ -216,19 +284,40 @@ export default function LiveControl({
               {state.blank ? "Screen is blank" : "Blank"}
             </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                window.open(
-                  `/present/services/${slug}/screen`,
-                  `churchviewer-output-${serviceId}`,
-                  "width=1280,height=720",
-                )
-              }
-              className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
-            >
-              Output window
-            </button>
+            {/* Second windows belong on the machine wired to the projector. On
+                the phone in somebody's hand, "Output window" would put the
+                congregation's screen on the phone and nowhere else. */}
+            {secondScreens ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.open(
+                      `/present/services/${slug}/screen`,
+                      `churchviewer-output-${serviceId}`,
+                      "width=1280,height=720",
+                    )
+                  }
+                  className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
+                >
+                  Output window
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.open(
+                      `/present/services/${slug}/stage`,
+                      `churchviewer-stage-${serviceId}`,
+                      "width=1280,height=720",
+                    )
+                  }
+                  className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
+                >
+                  Stage display
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
       </div>
@@ -280,6 +369,10 @@ export default function LiveControl({
                       item.kind,
                       item.musicalKey ? `key of ${item.musicalKey}` : "",
                       item.followable ? "has a recording" : "",
+                      item.offsiteRecordingOnly ? "recording is a link only" : "",
+                      // Why the box is greyed out, said on the box. Finding
+                      // this out on the day is finding it out too late.
+                      showable(item) ? "" : "nothing to show yet",
                       `${item.minutes} min`,
                     ]
                       .filter(Boolean)
