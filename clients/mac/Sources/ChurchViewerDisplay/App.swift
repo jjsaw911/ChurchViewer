@@ -18,7 +18,11 @@ struct ChurchViewerDisplayApp: App {
     var body: some Scene {
         Window("Projector", id: "projector") {
             OutputScene(output: settings.projector, reloadToken: reloadToken)
-                .onAppear { fillIfAsked(settings.projector, window: "Projector") }
+                .onAppear {
+                    fillIfAsked(settings.projector, window: "Projector")
+                    StayAwake.hold()
+                }
+                .onDisappear { StayAwake.release() }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
@@ -30,7 +34,11 @@ struct ChurchViewerDisplayApp: App {
 
         Window("Stage", id: "stage") {
             OutputScene(output: settings.stage, reloadToken: reloadToken)
-                .onAppear { fillIfAsked(settings.stage, window: "Stage") }
+                .onAppear {
+                    fillIfAsked(settings.stage, window: "Stage")
+                    StayAwake.hold()
+                }
+                .onDisappear { StayAwake.release() }
         }
         .windowStyle(.hiddenTitleBar)
 

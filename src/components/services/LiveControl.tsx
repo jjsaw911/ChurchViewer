@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { OperatorLights } from "@/components/services/LinkLights";
+import { useStayAwake } from "@/lib/services/awake";
 import ScreenPreview from "@/components/services/ScreenPreview";
 import { publishLive, useLiveState, usePresence } from "@/lib/services/live";
 import type { LiveState } from "@/lib/live/protocol";
@@ -61,6 +62,7 @@ export default function LiveControl({
   const state = useLiveState(serviceId, "control");
   const presence = usePresence(serviceId, "control");
   const secondScreens = useSecondScreens();
+  useStayAwake();
 
   /**
    * The box somebody has tapped but not yet committed to.
@@ -229,12 +231,32 @@ export default function LiveControl({
         step(-1);
       } else if (event.key.toLowerCase() === "b") {
         publish({ blank: !state.blank });
+      } else if (event.key.toLowerCase() === "p") {
+        // Start or stop the recording of whatever is up. This is also what the
+        // Play button on the remote presses — the native bar along the bottom
+        // reaches the page through keys, so anything it can do lives here.
+        if (liveItem && (liveItem.followable || film(liveItem))) {
+          publish({ playing: !state.playing });
+        }
       }
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [publish, state.blank, step]);
+  }, [items, liveItem, publish, state.blank, state.playing, step]);
+
+  /**
+   * Keep the live box where a thumb can reach it.
+   *
+   * The column grows with the service, so by the sermon the box that matters is
+   * somewhere above the fold — and the person holding this is not looking at
+   * it. When the screen changes to a different item, its box comes to the
+   * middle on its own.
+   */
+  const liveBox = useRef<HTMLLIElement | null>(null);
+  useEffect(() => {
+    liveBox.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [state.itemId]);
 
   // Clamped, because the display publishes the slide the recording has reached
   // and this window may still be a plan behind it.
@@ -284,7 +306,7 @@ export default function LiveControl({
 
           if (isLive) {
             return (
-              <li key={item.id}>
+              <li key={item.id} ref={liveBox}>
                 <div className="rounded-2xl border-2 border-amber-500 bg-amber-50/70 p-3 shadow-lg dark:bg-amber-950/30">
                   <div className="flex items-baseline gap-2 pb-2">
                     <span className="font-mono text-xs text-amber-700 dark:text-amber-500">

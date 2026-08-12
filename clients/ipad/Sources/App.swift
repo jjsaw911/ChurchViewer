@@ -38,6 +38,7 @@ private struct RemoteView: View {
                     ControlBar(
                         onBack: { PageKeys.press("ArrowLeft", in: webView) },
                         onNext: { PageKeys.press("ArrowRight", in: webView) },
+                        onPlay: { PageKeys.press("p", in: webView) },
                         onBlank: { PageKeys.press("b", in: webView) },
                         onPlans: {
                             // Somewhere to get back to. Without it, moving from
@@ -67,13 +68,14 @@ private struct RemoteView: View {
 /// be hittable without looking — this gets used one-handed, in a dark room, by
 /// somebody also watching a band.
 ///
-/// On a phone the same four buttons have about a hundred points less to live
-/// in, so the words come off Back and Blank rather than the buttons shrinking:
+/// On a phone the same buttons have about a hundred points less to live
+/// in, so the words come off all but Next rather than the buttons shrinking:
 /// a smaller target is worse than an unlabelled one when nobody is looking at
 /// their hands anyway.
 private struct ControlBar: View {
     let onBack: () -> Void
     let onNext: () -> Void
+    let onPlay: () -> Void
     let onBlank: () -> Void
     let onPlans: () -> Void
     let onSettings: () -> Void
@@ -118,6 +120,18 @@ private struct ControlBar: View {
             }
             .buttonStyle(.borderedProminent)
             .accessibilityLabel("Next")
+
+            // Start or stop whatever is up. Down here with the others rather
+            // than up in the box, because starting the music is one of the two
+            // things pressed while looking at a band instead of at a screen —
+            // and the box it lives in can be anywhere in a long list by then.
+            Button(action: onPlay) {
+                label("Play", "play.fill", .title3)
+                    .frame(width: narrow ? 62 : 140, height: 68)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
+            .accessibilityLabel("Start or stop the recording")
 
             Button(action: onBlank) {
                 label("Blank", "rectangle.slash", .title3)

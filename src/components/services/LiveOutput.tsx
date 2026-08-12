@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DisplayLights } from "@/components/services/LinkLights";
+import { useStayAwake } from "@/lib/services/awake";
 import { publishLive, useLiveState, usePresence } from "@/lib/services/live";
 import { slideAt } from "@/lib/songs/slides";
 import type { LiveState } from "@/lib/live/protocol";
@@ -256,6 +257,7 @@ export default function LiveOutput({
   const state = useLiveState(serviceId, "display");
   const presence = usePresence(serviceId, "display");
   const soundAllowed = useSoundAllowed();
+  useStayAwake();
   useFullscreenKey();
   const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const playing = state.itemId ? byId.get(state.itemId) : undefined;

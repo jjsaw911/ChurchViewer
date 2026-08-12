@@ -2,6 +2,7 @@
 
 import { useFullscreenKey } from "@/components/services/LiveOutput";
 import { formatClock, useNow } from "@/lib/services/clock";
+import { useStayAwake } from "@/lib/services/awake";
 import { useLiveState } from "@/lib/services/live";
 import type { PresentItem } from "@/lib/services/present";
 
@@ -24,6 +25,7 @@ export default function StageDisplay({
   // Registered as the stage monitor, so the operator's run sheet can show a
   // light for it rather than the church wondering whether it is on.
   const state = useLiveState(serviceId, "stage");
+  useStayAwake();
   useFullscreenKey();
   const now = useNow();
 
