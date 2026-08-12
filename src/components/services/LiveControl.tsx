@@ -5,7 +5,7 @@ import { OperatorLights } from "@/components/services/LinkLights";
 import { useStayAwake } from "@/lib/services/awake";
 import { useNativeStatus } from "@/lib/services/native";
 import ScreenPreview from "@/components/services/ScreenPreview";
-import { publishLive, useLiveState, usePresence } from "@/lib/services/live";
+import { publishLive, useHeardPlayback, useLiveState, usePresence } from "@/lib/services/live";
 import type { LiveState } from "@/lib/live/protocol";
 import type { PresentItem } from "@/lib/services/present";
 
@@ -28,6 +28,12 @@ function useSecondScreens(): boolean {
     // the buttons appear a moment later on a desktop.
     () => false,
   );
+}
+
+/** `93.4` -> `"1:33"`. Read at a glance, so no hours and no leading zero. */
+function clock(seconds: number): string {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
 /**
@@ -63,7 +69,27 @@ export default function LiveControl({
   const state = useLiveState(serviceId, "control");
   const presence = usePresence(serviceId, "control");
   const secondScreens = useSecondScreens();
+  const heard = useHeardPlayback(serviceId, "control");
   useStayAwake();
+
+  // A clock, so a report that stops arriving goes stale on its own rather than
+  // sitting there looking like a song that is still running.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!state.playing) return;
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [state.playing]);
+
+  /**
+   * Whether sound is actually coming out of the machine at the projector.
+   *
+   * Not `state.playing` — that is the instruction, true from the moment Start
+   * is pressed whether or not anything heard it. This is the projector's own
+   * report, and only while it is still arriving: two seconds of silence from a
+   * machine that reports every second means the room has gone quiet.
+   */
+  const reallyPlaying = Boolean(state.playing && heard && now - heard.at < 2500);
 
   /**
    * The box somebody has tapped but not yet committed to.
@@ -219,7 +245,7 @@ export default function LiveControl({
   // What the app's own buttons along the bottom show, when there is one.
   useNativeStatus({
     blank: state.blank,
-    playing: state.playing,
+    playing: reallyPlaying,
     canPlay: Boolean(liveItem && plays(liveItem)),
   });
 
@@ -275,6 +301,17 @@ export default function LiveControl({
 
   return (
     <div className="space-y-4">
+      {/* The one fact that makes every other control here pointless, said
+          before any of them rather than discovered by pressing one. A small
+          coloured dot was not enough: it is a dot, and this is somebody's
+          Sunday morning. */}
+      {presence.display === 0 ? (
+        <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200">
+          No screen is connected. Nothing you press here will reach a projector
+          until the display is open on the church computer.
+        </p>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Before anything else on the page: whether there is anything on the
             other end of all this. */}
@@ -375,6 +412,42 @@ export default function LiveControl({
                    />
                   </div>
 
+                  {/* Proof, or the absence of it. A number going up is the
+                      only way to know from here that the room can hear
+                      anything — the button below says what was asked for, this
+                      says what happened. */}
+                  {state.playing ? (
+                    <div className="mx-auto w-full max-w-xl pt-3">
+                      {reallyPlaying && heard ? (
+                        <div className="flex items-center gap-2 text-xs tabular-nums text-stone-600 dark:text-stone-400">
+                          <span className="w-9 shrink-0 text-right">{clock(heard.position)}</span>
+                          <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-stone-300 dark:bg-stone-700">
+                            <span
+                              className="block h-full rounded-full bg-emerald-600 transition-[width] duration-500 ease-linear"
+                              style={{
+                                width: heard.duration
+                                  ? `${Math.min(100, (heard.position / heard.duration) * 100)}%`
+                                  : "0%",
+                              }}
+                            />
+                          </span>
+                          <span className="w-9 shrink-0">
+                            {heard.duration ? clock(heard.duration) : ""}
+                          </span>
+                        </div>
+                      ) : (
+                        // Asked for, and nothing has answered. Said plainly,
+                        // because the alternative is an operator standing there
+                        // believing a song is running.
+                        <p className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-200">
+                          {presence.display === 0
+                            ? "No screen is connected, so nothing is playing. Open the display on the church computer."
+                            : "Waiting for the screen to start it…"}
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+
                   <div className="mx-auto flex w-full max-w-xl flex-wrap gap-2 pt-3">
                     <button
                       type="button"
@@ -407,7 +480,7 @@ export default function LiveControl({
                             : "bg-emerald-700 text-white hover:bg-emerald-800"
                         }`}
                       >
-                        {state.playing ? "Stop" : film(item) ? "Play" : "Start"}
+                        {state.playing ? (reallyPlaying ? "Stop" : "Cancel") : film(item) ? "Play" : "Start"}
                       </button>
                     ) : null}
 

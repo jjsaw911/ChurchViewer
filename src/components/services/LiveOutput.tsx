@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DisplayLights } from "@/components/services/LinkLights";
 import { useStayAwake } from "@/lib/services/awake";
-import { publishLive, useLiveState, usePresence } from "@/lib/services/live";
+import {
+  publishLive,
+  reportPlayback,
+  useLiveState,
+  usePresence,
+} from "@/lib/services/live";
 import { throughLimiter } from "@/lib/services/limiter";
 import { slideAt } from "@/lib/songs/slides";
 import { asGain, type LiveState } from "@/lib/live/protocol";
@@ -38,6 +43,8 @@ function usePlayback(serviceId: string, state: LiveState, item: PresentItem | nu
   // It has no idea how far in the room already is, so it says so — the flag
   // goes back to off and the operator presses Start when they mean it.
   const started = useRef(false);
+  /** When this machine last said where it had got to. */
+  const spoke = useRef(0);
 
   useEffect(() => {
     if (!state.playing) {
@@ -91,6 +98,18 @@ function usePlayback(serviceId: string, state: LiveState, item: PresentItem | nu
       // the position at zero, and following that would drag the screen back to
       // the first slide every quarter second — including over the operator.
       if (element.paused || element.currentTime <= 0) return;
+
+      // Said out loud, about once a second: the remote has no other way to
+      // know the difference between a song playing and a machine that never
+      // heard the instruction.
+      const now = Date.now();
+      if (now - spoke.current > 900) {
+        spoke.current = now;
+        reportPlayback(serviceId, {
+          position: element.currentTime,
+          duration: Number.isFinite(element.duration) ? element.duration : 0,
+        });
+      }
 
       const index = slideAt(slides, element.currentTime * 1000, offset);
       if (index < 0 || index === slide.current) return;

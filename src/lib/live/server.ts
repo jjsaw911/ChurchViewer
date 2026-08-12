@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { liveStates, services } from "@/db/schema";
 import { resolveAccess } from "@/lib/admin/guard";
 import { getSessionUser } from "@/lib/auth/session";
-import { IDLE_STATE, type LiveState } from "@/lib/live/protocol";
+import { IDLE_STATE, type LiveState, type Playback } from "@/lib/live/protocol";
 
 /**
  * The live state, held where more than one machine can see it.
@@ -72,6 +72,27 @@ export async function writeLiveState(serviceId: string, state: LiveState): Promi
     });
 
   bus.emit(channel(serviceId), state);
+}
+
+/**
+ * Where the recording has actually got to, passed straight through.
+ *
+ * Never written down. It is only true for the second it describes, and a
+ * position read back from a database after a restart would be a lie about a
+ * song that stopped an hour ago.
+ */
+const playbackChannel = (serviceId: string) => `playback:${serviceId}`;
+
+export function reportPlayback(serviceId: string, playback: Playback): void {
+  bus.emit(playbackChannel(serviceId), playback);
+}
+
+export function watchPlayback(
+  serviceId: string,
+  onReport: (playback: Playback) => void,
+): () => void {
+  bus.on(playbackChannel(serviceId), onReport);
+  return () => bus.off(playbackChannel(serviceId), onReport);
 }
 
 /** Listen for changes to one service. Returns the unsubscribe. */

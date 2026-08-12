@@ -1,6 +1,11 @@
 import type { NextRequest } from "next/server";
 import { joinService, presenceOf, watchPresence } from "@/lib/live/presence";
-import { authorizeService, readLiveState, watchLiveState } from "@/lib/live/server";
+import {
+  authorizeService,
+  readLiveState,
+  watchLiveState,
+  watchPlayback,
+} from "@/lib/live/server";
 import { envelope, type DeviceRole, type DisplayMessage } from "@/lib/live/protocol";
 
 /**
@@ -69,6 +74,11 @@ export async function GET(
       );
       send({ type: "presence", presence: presenceOf(serviceId), serviceId });
 
+      // Where the recording has got to, while it is getting there.
+      const unwatchPlayback = watchPlayback(serviceId, (playback) =>
+        send({ type: "playback", playback, serviceId }),
+      );
+
       const keepalive = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(": keepalive\n\n"));
@@ -81,6 +91,7 @@ export async function GET(
         clearInterval(keepalive);
         unwatch();
         unwatchPresence();
+        unwatchPlayback();
         leave();
         try {
           controller.close();

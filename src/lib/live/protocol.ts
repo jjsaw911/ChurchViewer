@@ -64,6 +64,26 @@ export const IDLE_STATE: LiveState = {
 /** Volume as the audio elements want it. */
 export const asGain = (volume: number) => Math.min(100, Math.max(0, volume)) / 100;
 
+/**
+ * What the machine at the projector is actually doing, as opposed to what it
+ * was told to do.
+ *
+ * `playing` in the live state is an instruction — it is true the moment
+ * somebody presses Start, whether or not there is a machine listening, whether
+ * or not that machine has the recording, whether or not its browser refused to
+ * make a noise. The remote showing "Stop" on the strength of that is the remote
+ * telling somebody a song is running when the room is silent.
+ *
+ * This is the other direction: a position that moves, sent while the audio is
+ * genuinely moving. A number going up is proof. Nothing else is.
+ */
+export type Playback = {
+  /** Seconds into the recording. */
+  position: number;
+  /** Its full length, or 0 before that is known. */
+  duration: number;
+};
+
 /** Who is talking. A service has one display and any number of controllers. */
 export type DeviceRole = "display" | "stage" | "control";
 
@@ -109,7 +129,9 @@ export type DisplayMessage =
   /** The plan changed underneath everyone — refetch rather than patch. */
   | { type: "planChanged"; serviceId: string }
   /** Somebody joined or left. Sent to everyone, including the one who did. */
-  | { type: "presence"; presence: Presence; serviceId: string };
+  | { type: "presence"; presence: Presence; serviceId: string }
+  /** The projector, saying where it has actually got to. Not persisted. */
+  | { type: "playback"; playback: Playback; serviceId: string };
 
 export type Envelope<T> = {
   version: number;

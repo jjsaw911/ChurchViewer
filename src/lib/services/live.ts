@@ -7,6 +7,7 @@ import {
   type DisplayMessage,
   type Envelope,
   type LiveState,
+  type Playback,
   type Presence,
 } from "@/lib/live/protocol";
 
@@ -35,6 +36,8 @@ type Entry = {
   state: LiveState;
   /** Who else is on this service, as last heard from the server. */
   presence: Presence;
+  /** The last thing the projector said about where the recording is. */
+  heard?: Heard;
   listeners: Set<() => void>;
   source?: EventSource;
   /**
@@ -44,6 +47,9 @@ type Entry = {
    */
   pending?: Partial<LiveState>;
 };
+
+/** A report, and when it arrived — because a stale one means silence. */
+export type Heard = Playback & { at: number };
 
 const services = new Map<string, Entry>();
 
@@ -160,6 +166,19 @@ function flush(serviceId: string): void {
 }
 
 /**
+ * The projector's report of where the recording actually is.
+ *
+ * Stamped on arrival rather than trusted to say when it was sent: the useful
+ * question is "did we hear anything in the last second", and only the receiving
+ * clock can answer that.
+ */
+function acceptPlayback(serviceId: string, playback: Playback): void {
+  const entry = entryFor(serviceId);
+  entry.heard = { ...playback, at: Date.now() };
+  for (const listener of entry.listeners) listener();
+}
+
+/**
  * Take a new roll-call.
  *
  * Same identity rule as the state: an unchanged count has to keep the object it
@@ -221,6 +240,8 @@ function useChannel(
             if (parsed.message.type === "state") accept(serviceId, parsed.message.state);
             else if (parsed.message.type === "presence") {
               acceptPresence(serviceId, parsed.message.presence);
+            } else if (parsed.message.type === "playback") {
+              acceptPlayback(serviceId, parsed.message.playback);
             }
           } catch {
             // A malformed frame is not worth taking the screen down for.
@@ -254,6 +275,37 @@ export function useLiveState(serviceId: string, role: DeviceRole = "control"): L
     useChannel(serviceId, role),
     () => entryFor(serviceId).state,
     () => IDLE_STATE,
+  );
+}
+
+/**
+ * Tell everyone where the recording has got to. Sent by the display, roughly
+ * once a second while something is playing.
+ */
+export function reportPlayback(serviceId: string, playback: Playback): void {
+  void fetch(`/api/live/${serviceId}/playback`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(playback),
+    keepalive: true,
+  }).catch(() => {
+    // Missing one of these means a progress bar stutters. Nothing more.
+  });
+}
+
+/**
+ * The last thing the projector said, or null if it has said nothing.
+ *
+ * Deliberately not "is it playing" — that judgement needs the current time and
+ * belongs where it is displayed, because a report from four seconds ago means
+ * the room has gone quiet and the caller is the one who knows how long it is
+ * willing to wait.
+ */
+export function useHeardPlayback(serviceId: string, role: DeviceRole = "control"): Heard | null {
+  return useSyncExternalStore(
+    useChannel(serviceId, role),
+    () => entryFor(serviceId).heard ?? null,
+    () => null,
   );
 }
 
