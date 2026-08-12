@@ -62,6 +62,16 @@ final class OutputSettings: ObservableObject {
 /// Everything the church sets once and never thinks about again.
 @MainActor
 final class Settings: ObservableObject {
+    /// Where every church lives. One place, so nothing else has to know it.
+    static let rootDomain = "churchviewer.com"
+
+    /// The standing addresses: not one service, but whichever one the church is
+    /// on. Pointed at a single Sunday, this Mac would need somebody to come and
+    /// change it every week — and the week they forget, the screen quietly puts
+    /// last week's songs in front of the congregation.
+    static let projectorPath = "/present/today/screen"
+    static let stagePath = "/present/today/stage"
+
     /// What the room sees: words, over whatever background the plan carries.
     let projector = OutputSettings(name: "Projector", prefix: "projector", legacyURLKey: "displayURL")
 
@@ -77,6 +87,42 @@ final class Settings: ObservableObject {
     }
 
     var isConfigured: Bool { projector.isConfigured || stage.isConfigured }
+
+    /**
+     The church's name out of anything somebody might have typed or pasted.
+
+     `citychurch`, `citychurch.churchviewer.com`, or a whole run sheet address
+     copied off a laptop all name the same church, and all three are things
+     people actually do.
+     */
+    static func name(in typed: String) -> String {
+        var text = typed.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let range = text.range(of: "://") { text = String(text[range.upperBound...]) }
+        if let slash = text.firstIndex(of: "/") { text = String(text[..<slash]) }
+
+        let first = text.split(separator: ".").first.map(String.init) ?? ""
+        return first == "www" ? "" : first
+    }
+
+    /// Which church both outputs are currently pointed at, if they are.
+    var church: String { Settings.name(in: projector.address.isEmpty ? stage.address : projector.address) }
+
+    /**
+     Point both windows at a church, and stop asking about addresses.
+
+     One name is all a church has to remember. The two addresses are written
+     underneath it, and stay editable for the rare case of driving one specific
+     service from a machine that isn't the one at the projector.
+     */
+    func point(at typed: String) {
+        let name = Settings.name(in: typed)
+        guard !name.isEmpty else { return }
+
+        let host = "https://\(name).\(Settings.rootDomain)"
+        projector.address = host + Settings.projectorPath
+        stage.address = host + Settings.stagePath
+        objectWillChange.send()
+    }
 }
 
 /// Opening at login, as a launch agent.

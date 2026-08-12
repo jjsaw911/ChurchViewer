@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ChurchNav from "@/components/ChurchNav";
@@ -7,10 +8,26 @@ import { resolveAccess } from "@/lib/admin/guard";
 import { getChurchBySlug } from "@/lib/churches";
 import { isPlatformAdminEmail, rootUrl } from "@/lib/env";
 
+/**
+ * The two windows that face a room rather than a person: the projector and the
+ * stage monitor. Everything else in a church gets the header, the navigation
+ * and the footer; these get nothing at all.
+ *
+ * A congregation should never see a website. Not a menu, not a church name in
+ * the corner, not a "Powered by" line under the words to a hymn — and not for
+ * the second and a half between the page arriving and the slide covering it up.
+ */
+function facesTheRoom(path: string | null): boolean {
+  return /^\/present\/.*\/(screen|stage)$/.test(path?.split("?")[0] ?? "");
+}
+
 export default async function TenantLayout({ children, params }: LayoutProps<"/s/[tenant]">) {
   const { tenant } = await params;
   const church = await getChurchBySlug(tenant);
   if (!church) notFound();
+
+  // The address as it was typed, left by the proxy on its way past.
+  if (facesTheRoom((await headers()).get("x-churchviewer-path"))) return <>{children}</>;
 
   const user = await getSessionUser();
   const access = user ? await resolveAccess(user, church.id) : null;

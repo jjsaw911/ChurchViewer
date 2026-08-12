@@ -203,3 +203,15 @@ export function toClockValue(totalMinutes: number): string {
   const wrapped = ((Math.round(totalMinutes) % 1440) + 1440) % 1440;
   return `${String(Math.floor(wrapped / 60)).padStart(2, "0")}:${String(wrapped % 60).padStart(2, "0")}`;
 }
+
+/**
+ * Today, as services are dated.
+ *
+ * UTC, which is what the server runs on and what `held_on` is compared
+ * against. It rolls over during Saturday evening in the Americas, and that is
+ * the harmless direction to be wrong in: a screen switched on the night before
+ * comes up on tomorrow's plan rather than yesterday's.
+ */
+export function todayForServices(now = new Date()): string {
+  return now.toISOString().slice(0, 10);
+}

@@ -11,6 +11,7 @@ struct SettingsView: View {
     let onReload: () -> Void
 
     @State private var screens: [String] = NSScreen.screens.map(\.localizedName)
+    @State private var church = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -21,11 +22,35 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            // The whole setup, for almost everybody: the church's name. Both
+            // windows then follow whatever service the church is on, this week
+            // and every week after, with nobody coming back to change them.
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Church").font(.headline)
+
+                HStack(spacing: 4) {
+                    TextField("yourchurch", text: $church)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { settings.point(at: church) }
+
+                    Text(".\(Settings.rootDomain)").foregroundStyle(.secondary)
+
+                    Button("Use this church") { settings.point(at: church) }
+                        .disabled(Settings.name(in: church).isEmpty)
+                }
+
+                Text("Both windows show whichever service this church is on today.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
             OutputSection(
                 output: settings.projector,
                 screens: $screens,
                 windowTitle: "Projector",
-                explanation: "From a plan: Run it, then Open the output screen.",
+                explanation: "Set by the church name above. Change it only to drive one particular service from this machine.",
                 onRescan: rescan
             )
 
@@ -35,7 +60,7 @@ struct SettingsView: View {
                 output: settings.stage,
                 screens: $screens,
                 windowTitle: "Stage",
-                explanation: "From a plan: Run it, then Open the stage display. Leave empty if there's no monitor facing the platform.",
+                explanation: "Set by the church name above. Leave empty if there's no monitor facing the platform.",
                 onRescan: rescan
             )
 
@@ -53,6 +78,7 @@ struct SettingsView: View {
         .padding(24)
         .frame(width: 580)
         .onAppear {
+            church = settings.church
             rescan()
             WindowPlacement.bringSettingsToOperator()
         }

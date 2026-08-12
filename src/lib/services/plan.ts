@@ -24,6 +24,35 @@ export async function getService(churchId: string, slug: string) {
 }
 
 /**
+ * The service the church is on right now.
+ *
+ * The machine at the projector is switched on and should already be showing the
+ * right thing. Nobody wants to type a date into it, and nobody will remember to
+ * change it next week — so it asks for the church and this answers "this one".
+ *
+ * Today's, if there is one. Otherwise the next one coming, so a screen set up
+ * on Saturday is already on Sunday's plan. Failing that the most recent, which
+ * is what a church that only plans occasionally has.
+ */
+export async function currentService(churchId: string, today: string) {
+  const pick = async (where: ReturnType<typeof and>, order: typeof asc) =>
+    (
+      await db
+        .select()
+        .from(services)
+        .where(where)
+        .orderBy(order(services.heldOn))
+        .limit(1)
+    )[0] ?? null;
+
+  return (
+    (await pick(and(eq(services.churchId, churchId), eq(services.heldOn, today)), asc)) ??
+    (await pick(and(eq(services.churchId, churchId), sql`${services.heldOn} > ${today}`), asc)) ??
+    (await pick(and(eq(services.churchId, churchId), sql`${services.heldOn} < ${today}`), desc))
+  );
+}
+
+/**
  * Everything in the service — activities and what's inside them, mixed, each
  * group in its own order. `layoutPlan` is what turns it back into a tree.
  */
