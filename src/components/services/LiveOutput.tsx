@@ -9,7 +9,6 @@ import {
   useLiveState,
   usePresence,
 } from "@/lib/services/live";
-import { throughLimiter } from "@/lib/services/limiter";
 import { slideAt } from "@/lib/songs/slides";
 import { asGain, type LiveState } from "@/lib/live/protocol";
 import type { PresentItem } from "@/lib/services/present";
@@ -63,37 +62,21 @@ function usePlayback(serviceId: string, state: LiveState, item: PresentItem | nu
     }
 
     started.current = true;
-    const element = new Audio();
-    // Before the source, or the browser fetches it without CORS and the
-    // limiter's graph comes out silent.
-    element.crossOrigin = "anonymous";
-    element.src = url;
+
+    // Plainly, and nothing clever. An element with a source and a volume, the
+    // way it was on the Sunday it worked.
+    //
+    // There was a limiter here, taking the peaks off a song mastered louder
+    // than the rest. Handing an element to Web Audio takes its sound off the
+    // speakers for good, and twice that ended in a silent projector — which is
+    // a far worse thing than a loud song. Evening out the volumes belongs
+    // where it cannot fail live: measured once when the recording is imported,
+    // and applied here as a number.
+    const element = new Audio(url);
     element.volume = asGain(latest.current.volume);
     audio.current = element;
 
-    const closeGraph = throughLimiter(element);
-
-    // Marking it `anonymous` is what lets the limiter see it, and it is also a
-    // way to fail: a fetch the bucket won't answer cross-origin loads nothing
-    // at all. So if the load fails, it is tried again plainly — no CORS, no
-    // limiter, and sound.
-    element.addEventListener("error", () => {
-      closeGraph();
-      const plain = new Audio(url);
-      plain.volume = asGain(latest.current.volume);
-      audio.current = plain;
-      void plain.play().catch(() => {
-        started.current = false;
-        publishLive(serviceId, { playing: false });
-      });
-    });
-
     const follow = () => {
-      // Whichever element is actually playing — the first one, or the plain
-      // one that replaced it.
-      const element = audio.current;
-      if (!element) return;
-
       // Only while it is genuinely running. A blocked or failed start leaves
       // the position at zero, and following that would drag the screen back to
       // the first slide every quarter second — including over the operator.
@@ -132,9 +115,7 @@ function usePlayback(serviceId: string, state: LiveState, item: PresentItem | nu
 
     return () => {
       clearInterval(timer);
-      audio.current?.pause();
       element.pause();
-      closeGraph();
       audio.current = null;
     };
   }, [elsewhere, serviceId, state.playing, url, slides, offset]);
