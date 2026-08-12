@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DisplayLights } from "@/components/services/LinkLights";
 import { publishLive, useLiveState, usePresence } from "@/lib/services/live";
 import { slideAt } from "@/lib/songs/slides";
@@ -152,6 +152,44 @@ function useFreshLinks(idle: boolean): void {
 }
 
 /**
+ * Whether this window is allowed to make a noise yet.
+ *
+ * A browser refuses to play sound until somebody has interacted with the page,
+ * and it cannot tell that Start was pressed by a person — the press happened on
+ * an iPad across the room and arrived down a wire. So the recording is refused,
+ * the flag goes back, and Start reads as a button that does nothing.
+ *
+ * The audio context knows: suspended means the refusal is coming. Asked
+ * silently, so nothing is heard while finding out, and one click anywhere on
+ * this window settles it for as long as it stays open. (The Mac app has no such
+ * rule — it is told outright that this window may play.)
+ */
+function useSoundAllowed(): boolean {
+  const [allowed, setAllowed] = useState(true);
+
+  useEffect(() => {
+    const Context = window.AudioContext;
+    if (!Context) return;
+
+    const context = new Context();
+    const check = () => setAllowed(context.state === "running");
+    check();
+
+    const unlock = () => void context.resume().then(check, check);
+    window.addEventListener("click", unlock);
+    window.addEventListener("keydown", unlock);
+
+    return () => {
+      window.removeEventListener("click", unlock);
+      window.removeEventListener("keydown", unlock);
+      void context.close();
+    };
+  }, []);
+
+  return allowed;
+}
+
+/**
  * F fills the screen, F again gives it back.
  *
  * The window is dragged onto a projector and then wants to lose its title bar,
@@ -217,6 +255,7 @@ export default function LiveOutput({
 }) {
   const state = useLiveState(serviceId, "display");
   const presence = usePresence(serviceId, "display");
+  const soundAllowed = useSoundAllowed();
   useFullscreenKey();
   const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const playing = state.itemId ? byId.get(state.itemId) : undefined;
@@ -316,6 +355,13 @@ export default function LiveOutput({
           this screen. Gone the instant there are words to read. */}
       {!slide && !state.blank ? (
         <div className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-2 text-white/25">
+          {/* Said while there is still time to do something about it, and only
+              ever on an empty screen. */}
+          {soundAllowed ? null : (
+            <p className="text-sm font-medium text-amber-400/80">
+              Click this window once, so it can play the recordings.
+            </p>
+          )}
           <DisplayLights presence={presence} />
           <p className="text-[0.6rem] tracking-[0.2em] text-white/15 uppercase">
             {serviceTitle} · F for full screen

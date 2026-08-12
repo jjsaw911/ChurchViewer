@@ -19,9 +19,17 @@ struct DisplayWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
-        // The presenter plays a recording only in the operator's window; here it
-        // must never start something on its own in front of a congregation.
-        configuration.mediaTypesRequiringUserActionForPlayback = .all
+
+        // This window plays the recordings, and nothing here will ever start on
+        // its own: the instruction comes from a person pressing Start on the
+        // remote. It just arrives over the network instead of as a click in
+        // this window, which is precisely what a browser's autoplay rule cannot
+        // tell apart — left switched on, it refuses the play, the flag goes
+        // back, and Start looks like a button that does nothing.
+        //
+        // The sound system is wired to this Mac. That is the whole reason the
+        // audio plays here rather than in the operator's hand.
+        configuration.mediaTypesRequiringUserActionForPlayback = []
 
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
