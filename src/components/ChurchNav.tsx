@@ -34,9 +34,10 @@ const STAFF_LINKS: Item[] = [
   { href: "/admin/services", label: "Plans" },
   { href: "/admin/songs", label: "Songs" },
   { href: "/admin/media", label: "Media" },
-  { href: "/admin", label: "Messages" },
+  { href: "/admin", label: "Sermons" },
   { href: "/admin/series", label: "Series" },
   { href: "/admin/board", label: "Noticeboard" },
+  { href: "/admin/inbox", label: "Messages" },
   { href: "/admin/social", label: "Social" },
   { href: "/admin/people", label: "People" },
   // Not an admin page — it's public, so a volunteer with the keys to the

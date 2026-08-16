@@ -341,6 +341,42 @@ export const churchPosts = pgTable(
   ],
 );
 
+/**
+ * One person writing to one other person, inside a church.
+ *
+ * The noticeboard is for things everybody should see; this is for "can you
+ * swap Sunday" — which nobody wants to post to eleven people, and which
+ * currently happens in a text message that the church has no record of and
+ * that reaches whoever is still in that group chat from three years ago.
+ *
+ * Scoped to a church rather than to the pair, because membership is what makes
+ * two people able to write to each other at all: leaving the church ends it,
+ * and somebody in two churches keeps the two conversations apart.
+ */
+export const directMessages = pgTable(
+  "direct_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    churchId: uuid("church_id")
+      .notNull()
+      .references(() => churches.id, { onDelete: "cascade" }),
+    fromUserId: uuid("from_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    toUserId: uuid("to_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    /** Set the first time the person it was sent to opens the conversation. */
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("direct_messages_to_idx").on(t.toUserId, t.readAt),
+    index("direct_messages_pair_idx").on(t.churchId, t.fromUserId, t.toUserId),
+  ],
+);
+
 export const socialPlatformEnum = pgEnum("social_platform", ["facebook", "instagram"]);
 
 export const appSettings = pgTable("app_settings", {

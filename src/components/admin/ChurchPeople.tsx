@@ -143,6 +143,17 @@ export default function ChurchPeople({
                   </p>
                 </div>
 
+                {/* Where somebody is already looking at a name is where they
+                    want to write to it. */}
+                {person.id !== currentUserId ? (
+                  <a
+                    href={`/admin/inbox/${person.id}`}
+                    className="text-sm font-medium text-amber-700 hover:underline dark:text-amber-500"
+                  >
+                    Message
+                  </a>
+                ) : null}
+
                 {canManage && person.id !== currentUserId ? (
                   <form action={removePersonAction}>
                     <input type="hidden" name="tenant" value={tenant} />
