@@ -91,6 +91,14 @@ export default async function PlansPage({ params }: PageProps<"/s/[tenant]/admin
           >
             Start planning
           </button>
+
+          {/* A day that already has a plan opens that plan instead of quietly
+              making a second one. Churches that hold two services on a Sunday
+              are real, though, so this is how they say so. */}
+          <label className="flex items-center gap-2 text-xs text-stone-500">
+            <input type="checkbox" name="another" value="yes" className="accent-amber-700" />
+            Another service that day
+          </label>
         </form>
       </section>
 
@@ -100,12 +108,19 @@ export default async function PlansPage({ params }: PageProps<"/s/[tenant]/admin
       </section>
 
       <section className="space-y-3">
-        <h2 className="font-semibold">Open a previous plan</h2>
+        <h2 className="font-semibold">Archive</h2>
         <p className="text-sm text-stone-500">
-          Last week&apos;s order is usually most of this week&apos;s. Open one to copy its
-          slides across, or just to see what you did.
+          Services that have been and gone. Last week&apos;s order is usually most of this
+          week&apos;s, so these are worth keeping &mdash; open one to copy its slides
+          across, or just to see what you did. Delete the ones you won&apos;t look at
+          again.
         </p>
-        <PlanList plans={previous} emptyMessage="No services have been and gone yet." />
+        <PlanList
+          plans={previous}
+          tenant={tenant}
+          deletable
+          emptyMessage="No services have been and gone yet."
+        />
       </section>
     </div>
   );

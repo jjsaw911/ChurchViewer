@@ -24,6 +24,7 @@ export const metadata: Metadata = { title: "Service plan" };
 
 export default async function ServicePlanPage({
   params,
+  searchParams,
 }: PageProps<"/s/[tenant]/admin/services/[slug]">) {
   const { tenant, slug } = await params;
   const { church } = await requireChurchAccess(tenant);
@@ -47,8 +48,23 @@ export default async function ServicePlanPage({
 
   const plan = layoutPlan(items, service.startsAt);
 
+  // Arrived by asking for a plan on a day that already had one.
+  const { already } = await searchParams;
+
   return (
     <div className="space-y-10">
+      {/* Somebody asked for a plan on a day that already had one, and this is
+          it. Said plainly, because the alternative — quietly making a second
+          empty plan for the same Sunday — ends with the projector finding one
+          of them and nobody able to say which. */}
+      {already ? (
+        <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+          There was already a plan for that day, so here it is. If you really are holding a
+          second service that day, use{" "}
+          <strong>Another service that day</strong> on the Plans page.
+        </p>
+      ) : null}
+
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-1">
           <Link href="/admin/services" className="text-sm text-stone-500 hover:underline">

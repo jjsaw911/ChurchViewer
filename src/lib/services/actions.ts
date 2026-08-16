@@ -209,6 +209,27 @@ export async function createServiceForDateAction(formData: FormData): Promise<vo
   const weekday = date.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
   const title = weekday === "Sunday" ? "Sunday Morning" : `${weekday} Service`;
 
+  /**
+   * One plan per day, unless somebody says otherwise.
+   *
+   * Pressing the button twice is far commoner than actually holding two
+   * services, and the second plan it used to make was empty, identical and
+   * invisible from the run sheet — so the projector would find one of them on
+   * Sunday and nobody could say which. Now the button takes you to the plan
+   * that already exists, and holding a second service that day is a separate,
+   * deliberate press.
+   */
+  const [sameDay] = await db
+    .select({ slug: services.slug })
+    .from(services)
+    .where(and(eq(services.churchId, church.id), eq(services.heldOn, heldOn)))
+    .orderBy(asc(services.slug))
+    .limit(1);
+
+  if (sameDay && value(formData, "another") !== "yes") {
+    redirect(`/admin/services/${sameDay.slug}?already=1`);
+  }
+
   // A church can hold more than one service on a day, so the date alone isn't
   // enough; suffix until it's free rather than failing on the unique index.
   let slug = heldOn;
@@ -737,13 +758,23 @@ export async function importItemSlidesAction(input: {
   return { ok: true, slides };
 }
 
+/**
+ * Remove a plan and everything in it.
+ *
+ * Kept behind a confirmation in the browser rather than a second page here: a
+ * plan is one Sunday's arrangement, and the person deleting it is looking at
+ * the date they mean. What it takes with it is the running order and any slides
+ * typed onto it — songs, recordings and pictures live in the library and are
+ * untouched, which is the distinction worth being sure of before pressing it.
+ */
 export async function deleteServiceAction(formData: FormData): Promise<void> {
   const tenant = value(formData, "tenant");
   const { church } = await requireChurchAccess(tenant);
+  const slug = value(formData, "slug");
 
   await db
     .delete(services)
-    .where(and(eq(services.churchId, church.id), eq(services.slug, value(formData, "slug"))));
+    .where(and(eq(services.churchId, church.id), eq(services.slug, slug)));
 
   revalidatePath(`/s/${tenant}`, "layout");
   redirect("/admin/services");

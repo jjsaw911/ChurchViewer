@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { deleteServiceAction } from "@/lib/services/actions";
 
 export type PlanRow = {
   slug: string;
@@ -34,9 +35,14 @@ function longDate(heldOn: string): string {
 export default function PlanList({
   plans,
   emptyMessage,
+  /** Offered on the archive, where a plan is finished with. */
+  tenant,
+  deletable = false,
 }: {
   plans: PlanRow[];
   emptyMessage: string;
+  tenant?: string;
+  deletable?: boolean;
 }) {
   const [search, setSearch] = useState("");
 
@@ -96,6 +102,36 @@ export default function PlanList({
                 >
                   Run it
                 </Link>
+
+                {deletable && tenant ? (
+                  <form
+                    action={deleteServiceAction}
+                    onSubmit={(event) => {
+                      // The date, in the question. "Are you sure?" is a
+                      // question nobody reads; the name of the Sunday about to
+                      // disappear is one they do.
+                      if (
+                        !window.confirm(
+                          `Delete the plan for ${longDate(plan.heldOn)}?\n\n` +
+                            "Its running order and any slides typed onto it go with it. " +
+                            "Songs, recordings and pictures stay in the library.",
+                        )
+                      ) {
+                        event.preventDefault();
+                      }
+                    }}
+                  >
+                    <input type="hidden" name="tenant" value={tenant} />
+                    <input type="hidden" name="slug" value={plan.slug} />
+                    <button
+                      type="submit"
+                      className="rounded-lg px-2 py-1 font-medium text-stone-400 hover:text-red-600 dark:hover:text-red-400"
+                      aria-label={`Delete the plan for ${longDate(plan.heldOn)}`}
+                    >
+                      Delete
+                    </button>
+                  </form>
+                ) : null}
               </div>
             </li>
           ))}

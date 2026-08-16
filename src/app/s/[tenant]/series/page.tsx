@@ -15,11 +15,18 @@ export default async function SeriesIndexPage({ params }: PageProps<"/s/[tenant]
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-semibold">Series</h1>
+      <div className="space-y-1">
+        <h1 className="text-3xl font-semibold">Series</h1>
+        <p className="text-stone-600 dark:text-stone-400">
+          Messages grouped into the run they belong to &mdash; a month on Philippians, a
+          summer of parables &mdash; so somebody who liked one can find the rest.
+        </p>
+      </div>
 
       {series.length === 0 ? (
         <p className="rounded-xl border border-dashed border-stone-300 p-10 text-center text-stone-500 dark:border-stone-700">
-          No series yet.
+          No series yet. They are made under Series in the church menu, and each one holds
+          the messages you put in it.
         </p>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2">

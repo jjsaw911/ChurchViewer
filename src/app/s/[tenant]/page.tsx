@@ -31,10 +31,16 @@ export default async function LibraryPage({ params }: PageProps<"/s/[tenant]">) 
 
   if (!latest) {
     return (
-      <div className="mx-auto max-w-lg space-y-3 py-20 text-center">
+      <div className="mx-auto max-w-lg space-y-4 py-20 text-center">
         <h1 className="text-2xl font-semibold">Nothing here yet</h1>
         <p className="text-stone-600 dark:text-stone-400">
-          {church.name} hasn&rsquo;t published any messages yet. Check back soon.
+          This is {church.name}&rsquo;s library: the page anyone can visit to catch up on
+          a message they missed, or listen again during the week. Nothing has been
+          published to it yet.
+        </p>
+        <p className="text-sm text-stone-500">
+          It is separate from planning a service. Recordings are added under Messages,
+          and appear here once they are published.
         </p>
       </div>
     );
