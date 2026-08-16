@@ -67,7 +67,20 @@ fi
   --out "$APK" "$OUT/aligned.apk"
 
 rm -rf "$OUT"
-echo "==> Built: $(pwd)/$APK"
+
+# What the installed apps ask, once a day, to find out whether they are behind.
+VERSION_CODE=$(grep -o 'versionCode="[0-9]*"' AndroidManifest.xml | grep -o '[0-9]*')
+VERSION_NAME=$(grep -o 'versionName="[^"]*"' AndroidManifest.xml | cut -d'"' -f2)
+cat > android.json <<JSON
+{
+  "versionCode": $VERSION_CODE,
+  "versionName": "$VERSION_NAME",
+  "url": "/downloads/ChurchViewer-Remote.apk"
+}
+JSON
+
+echo "==> Built: $(pwd)/$APK (version $VERSION_NAME, code $VERSION_CODE)"
+echo "    and android.json, which installed copies read to notice it"
 
 if [ "${1:-}" = "--install" ]; then
   echo "==> Installing"

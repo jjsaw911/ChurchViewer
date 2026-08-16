@@ -3,6 +3,9 @@ package com.churchviewer.remote;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.net.Uri;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -93,6 +96,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (web != null && !church().isEmpty() && web.getUrl() != null) web.reload();
+        checkForUpdate();
     }
 
     /** Back walks the page's history rather than closing the app mid-service. */
@@ -265,6 +269,92 @@ public class MainActivity extends Activity {
         if (dot >= 0) text = text.substring(0, dot);
 
         return text.matches("[a-z0-9-]+") && !text.equals("www") ? text : "";
+    }
+
+    // --- keeping itself current ---------------------------------------------
+
+    /**
+     * Whether there is a newer shell, and an offer to go and get it.
+     *
+     * Nearly nothing needs this. The run sheet is a web page, so the buttons,
+     * the confirmations and everything else about running a service arrive on
+     * their own the next time the app opens — this is only for the shell around
+     * it, which changes rarely.
+     *
+     * When it does change, a church has no way of knowing. Nobody visits a
+     * download page to check. So the app asks, once a day at most, and says so
+     * — and handing the file to the browser rather than installing it here
+     * means no permission to install packages, and the ordinary Android
+     * download somebody has seen a hundred times.
+     */
+    private void checkForUpdate() {
+        String church = church();
+        if (church.isEmpty()) return;
+
+        long lastAsked = settings.getLong("updateCheckedAt", 0);
+        if (System.currentTimeMillis() - lastAsked < 24 * 60 * 60 * 1000) return;
+
+        new Thread(() -> {
+            try {
+                java.net.HttpURLConnection connection =
+                        (java.net.HttpURLConnection)
+                                new java.net.URL(address("/downloads/android.json"))
+                                        .openConnection();
+                connection.setConnectTimeout(8000);
+                connection.setReadTimeout(8000);
+
+                java.io.InputStream body = connection.getInputStream();
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                byte[] chunk = new byte[4096];
+                int read;
+                while ((read = body.read(chunk)) > 0) out.write(chunk, 0, read);
+                body.close();
+
+                String json = out.toString("UTF-8");
+                int latest = Integer.parseInt(field(json, "versionCode"));
+                String name = field(json, "versionName");
+
+                settings.edit().putLong("updateCheckedAt", System.currentTimeMillis()).apply();
+                if (latest <= installedVersion()) return;
+
+                runOnUiThread(() -> offerUpdate(name));
+            } catch (Exception ignored) {
+                // Offline, or the file isn't there. Not worth a word: this is a
+                // courtesy, and the app works perfectly without it.
+            }
+        }).start();
+    }
+
+    private void offerUpdate(String name) {
+        if (isFinishing()) return;
+
+        new AlertDialog.Builder(this)
+                .setTitle("There's a newer version")
+                .setMessage("Version " + name + " of the remote is available. Downloading it "
+                        + "opens the usual Android installer; your church and your sign-in "
+                        + "are kept.")
+                .setPositiveButton("Download", (dialog, which) ->
+                        startActivity(new Intent(Intent.ACTION_VIEW,
+                                Uri.parse(address("/downloads/ChurchViewer-Remote.apk")))))
+                .setNegativeButton("Not now", null)
+                .show();
+    }
+
+    private int installedVersion() {
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return info.versionCode;
+        } catch (Exception problem) {
+            return Integer.MAX_VALUE;
+        }
+    }
+
+    /** One value out of a flat JSON object, without a parser for four fields. */
+    private static String field(String json, String key) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("\"" + key + "\"\\s*:\\s*\"?([^,\"}]+)")
+                .matcher(json);
+        return matcher.find() ? matcher.group(1).trim() : "";
     }
 
     private int dp(int value) {
