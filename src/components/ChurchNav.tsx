@@ -30,6 +30,8 @@ const STAFF_LINKS: Item[] = [
   { href: "/admin/media", label: "Media" },
   { href: "/admin", label: "Messages" },
   { href: "/admin/series", label: "Series" },
+  { href: "/admin/board", label: "Noticeboard" },
+  { href: "/admin/social", label: "Social" },
   { href: "/admin/people", label: "People" },
   // Not an admin page — it's public, so a volunteer with the keys to the
   // building can be sent straight to it — but this is where staff look for it.

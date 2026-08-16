@@ -10,6 +10,7 @@ import { requirePlatformAdmin } from "@/lib/admin/platform";
 import { getAnyChurchBySlug } from "@/lib/churches";
 import { rootUrl } from "@/lib/env";
 import { clearSetting, OPENAI_API_KEY, setSetting } from "@/lib/settings";
+import { META_APP_ID, META_APP_SECRET } from "@/lib/social/meta";
 import { slugify, validateSlug } from "@/lib/tenant";
 
 /**
@@ -86,6 +87,42 @@ export async function saveOpenAiKeyAction(
 
   revalidatePath("/admin");
   return { ok: "Key saved. Transcription is on from the next job.", scope: "openai" };
+}
+
+/**
+ * The Facebook app the whole site posts through.
+ *
+ * One app for ChurchViewer rather than one per church: Meta registers a single
+ * redirect address, and a church per subdomain would mean registering every
+ * church with Meta. Churches then connect their own pages to it.
+ */
+export async function saveMetaAppAction(
+  _previous: PlatformState,
+  formData: FormData,
+): Promise<PlatformState> {
+  const admin = await requirePlatformAdmin();
+
+  const appId = value(formData, "appId");
+  const appSecret = value(formData, "appSecret");
+  if (!appId || !appSecret) return fail("Both the app ID and the secret.", "meta");
+  if (!/^\d{8,}$/.test(appId)) {
+    return fail("A Facebook app ID is all digits — check that one.", "meta");
+  }
+
+  await setSetting(META_APP_ID, appId, admin.id);
+  await setSetting(META_APP_SECRET, appSecret, admin.id);
+
+  revalidatePath("/admin");
+  return { ok: "Saved. Churches can connect their pages now.", scope: "meta" };
+}
+
+export async function clearMetaAppAction(): Promise<PlatformState> {
+  await requirePlatformAdmin();
+  await clearSetting(META_APP_ID);
+  await clearSetting(META_APP_SECRET);
+
+  revalidatePath("/admin");
+  return { ok: "Removed. Nobody can connect a new page until it's set again.", scope: "meta" };
 }
 
 export async function clearOpenAiKeyAction(): Promise<PlatformState> {

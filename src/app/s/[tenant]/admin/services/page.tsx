@@ -104,7 +104,14 @@ export default async function PlansPage({ params }: PageProps<"/s/[tenant]/admin
 
       <section className="space-y-3">
         <h2 className="font-semibold">Coming up</h2>
-        <PlanList plans={upcoming} emptyMessage="Nothing planned ahead yet." />
+        {/* Deletable here too: the plan most likely to be wrong is the one
+            made a minute ago on the wrong date, and it is sitting right here. */}
+        <PlanList
+          plans={upcoming}
+          tenant={tenant}
+          deletable
+          emptyMessage="Nothing planned ahead yet."
+        />
       </section>
 
       <section className="space-y-3">

@@ -134,6 +134,20 @@
       "when": 1786901098529,
       "tag": "0018_numerous_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786901807726,
+      "tag": "0019_powerful_mockingbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786902064020,
+      "tag": "0020_furry_microchip",
+      "breakpoints": true
     }
   ]
 }

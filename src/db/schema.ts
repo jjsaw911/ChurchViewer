@@ -309,12 +309,125 @@ export const songs = pgTable(
  * they are written from the console, read on the server, and never sent back to
  * a browser.
  */
+/**
+ * The church's own noticeboard: one table, threads and replies together.
+ *
+ * A reply is a post with a parent. Two tables would mean two of every query and
+ * a decision, on the day somebody wants to reply to a reply, that has to be
+ * made in the schema rather than in the page.
+ *
+ * Nothing here is public. It is read by people who are members of the church
+ * and nobody else, which is the whole point of it — the group chat that
+ * currently does this job includes whoever was in it three years ago.
+ */
+export const churchPosts = pgTable(
+  "church_posts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    churchId: uuid("church_id")
+      .notNull()
+      .references(() => churches.id, { onDelete: "cascade" }),
+    /** Null for a thread; the thread's id for a reply. */
+    parentId: uuid("parent_id"),
+    authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
+    /** Kept flat so a post still reads properly after somebody leaves. */
+    authorName: text("author_name").notNull().default(""),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("church_posts_church_id_idx").on(t.churchId),
+    index("church_posts_parent_id_idx").on(t.parentId),
+  ],
+);
+
+export const socialPlatformEnum = pgEnum("social_platform", ["facebook", "instagram"]);
+
 export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
   updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * A page or profile a church has connected, and the token that posts to it.
+ *
+ * One row per destination rather than per account, because that is the unit
+ * somebody ticks in a composer: this Facebook Page, that Instagram profile.
+ *
+ * The token is the whole of the permission, so it is stored here and never
+ * anywhere a browser can reach — posting happens on the server, from this row,
+ * and the composer only ever names the row it wants. Meta's long-lived page
+ * tokens do not expire on a timetable but can be revoked at any moment by
+ * anybody with rights over the page, so `brokenAt` records the first time one
+ * was refused rather than pretending it will always work.
+ */
+export const socialAccounts = pgTable(
+  "social_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    churchId: uuid("church_id")
+      .notNull()
+      .references(() => churches.id, { onDelete: "cascade" }),
+    platform: socialPlatformEnum("platform").notNull(),
+    /** Meta's id for the page or profile. */
+    externalId: text("external_id").notNull(),
+    /** What to call it in a list of tick boxes. */
+    name: text("name").notNull(),
+    accessToken: text("access_token").notNull(),
+    connectedBy: uuid("connected_by").references(() => users.id, { onDelete: "set null" }),
+    connectedAt: timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When a post was last refused, and what was said. */
+    brokenAt: timestamp("broken_at", { withTimezone: true }),
+    brokenReason: text("broken_reason"),
+  },
+  (t) => [
+    index("social_accounts_church_id_idx").on(t.churchId),
+    uniqueIndex("social_accounts_church_platform_external").on(
+      t.churchId,
+      t.platform,
+      t.externalId,
+    ),
+  ],
+);
+
+export const socialPostStatusEnum = pgEnum("social_post_status", [
+  "posted",
+  "failed",
+]);
+
+/**
+ * What was sent, where, and how it went.
+ *
+ * Kept because posting is the one thing here that reaches outside the building
+ * and cannot be taken back quietly. Somebody has to be able to answer "did that
+ * go out, and to which page", weeks later, without logging into Facebook.
+ */
+export const socialPosts = pgTable(
+  "social_posts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    churchId: uuid("church_id")
+      .notNull()
+      .references(() => churches.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id").references(() => socialAccounts.id, { onDelete: "set null" }),
+    /** Kept flat, so the record survives the account being disconnected. */
+    platform: socialPlatformEnum("platform").notNull(),
+    accountName: text("account_name").notNull().default(""),
+    message: text("message").notNull().default(""),
+    /** The picture that went with it, as a location like anything else. */
+    mediaSrc: text("media_src"),
+    linkUrl: text("link_url"),
+    status: socialPostStatusEnum("status").notNull(),
+    /** Meta's id for the post, so it can be found again. */
+    externalId: text("external_id"),
+    error: text("error"),
+    postedBy: uuid("posted_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("social_posts_church_id_idx").on(t.churchId)],
+);
 
 export const mediaAssetKindEnum = pgEnum("media_asset_kind", [
   "audio",

@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import MetaAppForm from "@/components/admin/MetaAppForm";
 import OpenAiKeyForm from "@/components/admin/OpenAiKeyForm";
 import PlatformConsole from "@/components/admin/PlatformConsole";
 import { requirePlatformAdmin } from "@/lib/admin/platform";
 import { listChurches, listPeople, platformStats } from "@/lib/churches";
 import { env } from "@/lib/env";
 import { describeSecret, getSetting, OPENAI_API_KEY } from "@/lib/settings";
+import { META_APP_ID, META_APP_SECRET } from "@/lib/social/meta";
+import { rootUrl } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Platform admin" };
 
@@ -23,11 +26,22 @@ export default async function PlatformAdminPage() {
     getSetting(OPENAI_API_KEY),
   ]);
 
+  const [metaAppId, metaSecret] = await Promise.all([
+    getSetting(META_APP_ID),
+    getSetting(META_APP_SECRET),
+  ]);
+
   return (
     <div className="space-y-10">
       <OpenAiKeyForm
         hint={describeSecret(storedKey)}
         fromEnvironment={Boolean(process.env.OPENAI_API_KEY)}
+      />
+
+      <MetaAppForm
+        appId={metaAppId}
+        hasSecret={Boolean(metaSecret)}
+        redirectUri={rootUrl("/api/social/callback")}
       />
 
       <PlatformConsole
