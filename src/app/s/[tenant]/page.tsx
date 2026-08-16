@@ -5,6 +5,7 @@ import SermonLibrary from "@/components/SermonLibrary";
 import { listSermons, listSeries, listSpeakers } from "@/lib/content";
 import { formatDate, formatDuration } from "@/lib/format";
 import { getChurchBySlug } from "@/lib/churches";
+import { hasChurchAccess } from "@/lib/admin/guard";
 
 export async function generateMetadata({ params }: PageProps<"/s/[tenant]">): Promise<Metadata> {
   const { tenant } = await params;
@@ -20,6 +21,8 @@ export default async function LibraryPage({ params }: PageProps<"/s/[tenant]">) 
   const { tenant } = await params;
   const church = await getChurchBySlug(tenant);
   if (!church) notFound();
+  // Nobody outside this church renders any of it — see `hasChurchAccess`.
+  if (!(await hasChurchAccess(church.id))) return null;
 
 
   const [sermons, series, speakers] = await Promise.all([

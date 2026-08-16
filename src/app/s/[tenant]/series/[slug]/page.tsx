@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import SermonCard from "@/components/SermonCard";
 import { getSeriesRow, listSermonsInSeries } from "@/lib/content";
 import { getChurchBySlug } from "@/lib/churches";
+import { hasChurchAccess } from "@/lib/admin/guard";
 
 export async function generateMetadata({
   params,
@@ -18,6 +19,8 @@ export default async function SeriesPage({ params }: PageProps<"/s/[tenant]/seri
   const { tenant, slug } = await params;
   const church = await getChurchBySlug(tenant);
   if (!church) notFound();
+  // Nobody outside this church renders any of it — see `hasChurchAccess`.
+  if (!(await hasChurchAccess(church.id))) return null;
 
   const series = await getSeriesRow(church.id, slug);
   if (!series) notFound();

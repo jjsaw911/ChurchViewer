@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { listSeries } from "@/lib/content";
 import { getChurchBySlug } from "@/lib/churches";
+import { hasChurchAccess } from "@/lib/admin/guard";
 
 export const metadata: Metadata = { title: "Series" };
 
@@ -10,6 +11,8 @@ export default async function SeriesIndexPage({ params }: PageProps<"/s/[tenant]
   const { tenant } = await params;
   const church = await getChurchBySlug(tenant);
   if (!church) notFound();
+  // Nobody outside this church renders any of it — see `hasChurchAccess`.
+  if (!(await hasChurchAccess(church.id))) return null;
 
   const series = await listSeries(church.id);
 

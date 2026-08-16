@@ -5,6 +5,7 @@ import MediaPlayer from "@/components/MediaPlayer";
 import { getNextInSeries, getSermon } from "@/lib/content";
 import { formatDate, formatDuration } from "@/lib/format";
 import { getChurchBySlug } from "@/lib/churches";
+import { hasChurchAccess } from "@/lib/admin/guard";
 
 export async function generateMetadata({
   params,
@@ -31,6 +32,8 @@ export default async function SermonPage({ params }: PageProps<"/s/[tenant]/serm
   const { tenant, slug } = await params;
   const church = await getChurchBySlug(tenant);
   if (!church) notFound();
+  // Nobody outside this church renders any of it — see `hasChurchAccess`.
+  if (!(await hasChurchAccess(church.id))) return null;
 
   const sermon = await getSermon(church.id, slug);
   if (!sermon) notFound();

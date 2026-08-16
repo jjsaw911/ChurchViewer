@@ -50,6 +50,19 @@ async function intendedUrl(slug: string): Promise<string> {
 }
 
 /**
+ * Whether this visitor is in this church, without redirecting anywhere.
+ *
+ * For the pages that are not admin pages but are still nobody else's business.
+ * The layout draws a door in front of them, and a page that renders anyway ends
+ * up embedded in the payload behind that door — visible to anybody who reads
+ * the source. So the page has to decline to render, not merely be covered up.
+ */
+export async function hasChurchAccess(churchId: string): Promise<boolean> {
+  const user = await getSessionUser();
+  return user ? Boolean(await resolveAccess(user, churchId)) : false;
+}
+
+/**
  * Gate for everything under `/admin`. Server actions must call this too — an
  * action is a public endpoint, and the page that rendered its form proves
  * nothing about who is submitting it.
