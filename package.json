@@ -14,7 +14,8 @@
     "test": "tsx --test src/lib/units.test.ts src/lib/songs/slides.test.ts src/lib/songs/extract.test.ts src/lib/songs/key.test.ts src/lib/services/plan.test.ts src/lib/live/presence.test.ts src/lib/services/import.test.ts src/lib/media/background.test.ts",
     "worker": "tsx src/worker/transcribe.ts",
     "test:db": "tsx --test src/lib/songs/queue.db-test.ts",
-    "setup": "tsx src/scripts/setup-local.ts"
+    "setup": "tsx src/scripts/setup-local.ts",
+    "demo:seed": "tsx src/scripts/seed-demo.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.21.0",
