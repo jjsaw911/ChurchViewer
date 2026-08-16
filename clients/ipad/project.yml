@@ -18,6 +18,10 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: ChurchViewer
+        # Export compliance, answered once here rather than on every upload.
+        # The app's only encryption is the HTTPS that iOS itself provides — see
+        # EXPORT-COMPLIANCE.md for what that means and why this is false.
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         # A phone is held whichever way the person is standing; a tablet on a
         # music stand is usually landscape. Both, on both.
