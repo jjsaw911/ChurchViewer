@@ -16,6 +16,9 @@ import { slugify } from "@/lib/tenant";
 import { youtubeVideoId } from "@/lib/youtube";
 import type { SlidePayload } from "@/lib/songs/types";
 
+export type SongLinkResult = { link: string; ok: boolean; note: string };
+export type SongLinksState = { error?: string; results?: SongLinkResult[] };
+
 export type SongState = { error?: string; values?: Record<string, string> };
 
 const value = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
@@ -240,6 +243,102 @@ export async function createSongFromFileAction(input: {
 
   revalidatePath(`/s/${input.tenant}`, "layout");
   return { ok: true, slug: song.slug, title: song.title };
+}
+
+/**
+ * A list of links, each one turned into a song and queued.
+ *
+ * The point is a backlog. A church with two years of recordings has forty
+ * files, and forty trips through an upload box is an afternoon — where forty
+ * links pasted into a box is a minute, and the server does the fetching while
+ * nobody watches.
+ *
+ * Each link is judged on its own: a bad one in the middle doesn't stop the
+ * rest, and what happened to each is handed back so it can be read as a list
+ * rather than a single "some of that worked".
+ */
+export async function createSongsFromLinksAction(
+  _previous: SongLinksState,
+  formData: FormData,
+): Promise<SongLinksState> {
+  const tenant = value(formData, "tenant");
+  const { church } = await requireChurchAccess(tenant);
+
+  const links = value(formData, "links")
+    .split(/[\s,]+/)
+    .map((link) => link.trim())
+    .filter(Boolean);
+
+  if (links.length === 0) return { error: "Paste some links first." };
+  if (links.length > 50) return { error: "Fifty at a time is plenty — do the rest after." };
+
+  const results: SongLinkResult[] = [];
+
+  for (const link of links) {
+    let url: URL;
+    try {
+      url = new URL(link);
+    } catch {
+      results.push({ link, ok: false, note: "Not a web address." });
+      continue;
+    }
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      results.push({ link, ok: false, note: "Has to be an http or https link." });
+      continue;
+    }
+
+    // The commonest mistake, and the one that fails an hour later otherwise.
+    if (/(^|\.)(youtube\.com|youtu\.be|vimeo\.com)$/i.test(url.hostname)) {
+      results.push({
+        link,
+        ok: false,
+        note: "That's a page, not a file. Download the original from YouTube Studio.",
+      });
+      continue;
+    }
+
+    const filename = decodeURIComponent(url.pathname.split("/").pop() ?? "");
+    const kind = kindFor("", filename);
+    if (kind !== "audio" && kind !== "video") {
+      results.push({
+        link,
+        ok: false,
+        note: "The link has to end in the file itself — .mp4, .mov, .mp3.",
+      });
+      continue;
+    }
+
+    // Already here, from the same folder last week or the same paste twice.
+    const [existing] = await db
+      .select({ title: songs.title })
+      .from(songs)
+      .where(
+        and(
+          eq(songs.churchId, church.id),
+          or(eq(songs.audioSrc, link), eq(songs.videoSrc, link))!,
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      results.push({ link, ok: true, note: `Already here as “${existing.title}”.` });
+      continue;
+    }
+
+    const song = await createSong({
+      churchId: church.id,
+      title: titleFromFilename(displayFilename(filename)),
+      audioSrc: kind === "audio" ? link : null,
+      videoSrc: kind === "video" ? link : null,
+    });
+
+    await enqueueSongWork({ churchId: church.id, songId: song.id, tidy: true });
+    results.push({ link, ok: true, note: `Queued as “${song.title}”.` });
+  }
+
+  revalidatePath(`/s/${tenant}`, "layout");
+  return { results };
 }
 
 /**

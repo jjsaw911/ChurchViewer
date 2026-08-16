@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SongLinkImport from "@/components/songs/SongLinkImport";
 import SongDrop from "@/components/songs/SongDrop";
 import { requireChurchAccess } from "@/lib/admin/guard";
 import { listSongs } from "@/lib/songs/service";
@@ -40,6 +41,8 @@ export default async function SongsPage({ params }: PageProps<"/s/[tenant]/admin
       </header>
 
       <SongDrop tenant={tenant} uploadsEnabled={env.storage.isConfigured} />
+
+      <SongLinkImport tenant={tenant} />
 
       {songs.length === 0 ? (
         <p className="rounded-xl border border-dashed border-stone-300 p-12 text-center text-stone-500 dark:border-stone-700">
