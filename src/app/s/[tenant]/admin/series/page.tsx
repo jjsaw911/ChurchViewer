@@ -20,6 +20,10 @@ export default async function AdminSeriesPage({
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold">Series</h1>
         <p className="text-sm text-stone-500">
+          Messages grouped into the run they belong to &mdash; a month on Philippians, a
+          summer of parables &mdash; so the one somebody is looking for is findable later.
+        </p>
+        <p className="text-sm text-stone-500">
           Group messages that belong together. Deleting a series keeps its messages.
         </p>
       </div>

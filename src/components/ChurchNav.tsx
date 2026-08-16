@@ -19,10 +19,16 @@ import { usePathname } from "next/navigation";
 
 type Item = { href: string; label: string };
 
-const PUBLIC_LINKS: Item[] = [
-  { href: "/", label: "Library" },
-  { href: "/series", label: "Series" },
-];
+/**
+ * The two pages that read rather than edit.
+ *
+ * Series used to appear twice — once to look at, once to manage — which is one
+ * word in two places meaning almost the same thing, and a menu that makes
+ * somebody stop and choose. Now the staff page does both: the list is on it,
+ * and so is the form that adds to it. `/series` still exists for the links out
+ * of a sermon; it just isn't a thing to pick from a menu.
+ */
+const PUBLIC_LINKS: Item[] = [{ href: "/", label: "Library" }];
 
 const STAFF_LINKS: Item[] = [
   { href: "/admin/services", label: "Plans" },
