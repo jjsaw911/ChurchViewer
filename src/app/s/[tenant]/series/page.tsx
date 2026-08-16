@@ -19,7 +19,7 @@ export default async function SeriesIndexPage({ params }: PageProps<"/s/[tenant]
         <h1 className="text-3xl font-semibold">Series</h1>
         <p className="text-stone-600 dark:text-stone-400">
           Messages grouped into the run they belong to &mdash; a month on Philippians, a
-          summer of parables &mdash; so somebody who liked one can find the rest.
+          summer of parables &mdash; so the one you are looking for is findable later.
         </p>
       </div>
 

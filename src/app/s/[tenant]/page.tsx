@@ -21,6 +21,7 @@ export default async function LibraryPage({ params }: PageProps<"/s/[tenant]">) 
   const church = await getChurchBySlug(tenant);
   if (!church) notFound();
 
+
   const [sermons, series, speakers] = await Promise.all([
     listSermons(church.id),
     listSeries(church.id),
@@ -29,18 +30,59 @@ export default async function LibraryPage({ params }: PageProps<"/s/[tenant]">) 
 
   const latest = sermons[0];
 
+  /**
+   * The front door.
+   *
+   * Somebody typing the church's address is one of two people. A member, on a
+   * Sunday morning, who wants the run sheet — and used to land on a sermon
+   * library with no way to sign in at all, which is how a volunteer decides the
+   * account they were handed doesn't work. Or a visitor looking for a message
+   * they missed, who should still find one if the church publishes them.
+   *
+   * So: what you can do here, first, and the library underneath it.
+   */
+  /**
+   * Where somebody who works here actually wants to go.
+   *
+   * Nobody without an account reaches this page — the layout puts a door in
+   * front of the whole address — so this is a staff landing rather than a front
+   * page: the three things anybody types this address to do.
+   */
+  const doorway = (
+    <section className="mx-auto max-w-lg space-y-5 py-10 text-center">
+      <h1 className="text-3xl font-semibold">{church.name}</h1>
+      <div className="flex flex-wrap justify-center gap-2">
+        <Link
+          href="/present/today"
+          className="rounded-lg bg-amber-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-800"
+        >
+          Run today&rsquo;s service
+        </Link>
+        <Link
+          href="/admin/services"
+          className="rounded-lg border border-stone-300 px-5 py-2.5 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
+        >
+          Plans
+        </Link>
+        <Link
+          href="/admin/board"
+          className="rounded-lg border border-stone-300 px-5 py-2.5 text-sm font-medium hover:border-amber-400 dark:border-stone-700"
+        >
+          Noticeboard
+        </Link>
+      </div>
+    </section>
+  );
+
   if (!latest) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 py-20 text-center">
-        <h1 className="text-2xl font-semibold">Nothing here yet</h1>
-        <p className="text-stone-600 dark:text-stone-400">
-          This is {church.name}&rsquo;s library: the page anyone can visit to catch up on
-          a message they missed, or listen again during the week. Nothing has been
-          published to it yet.
-        </p>
-        <p className="text-sm text-stone-500">
-          It is separate from planning a service. Recordings are added under Messages,
-          and appear here once they are published.
+      <div className="space-y-8">
+        {doorway}
+
+        <p className="mx-auto max-w-lg text-center text-sm text-stone-500">
+          Below this is the recordings library &mdash; messages the church has kept, for
+          anybody here who wants to hear one again. Nothing has been added to it yet;
+          recordings go in under Messages.
         </p>
       </div>
     );
@@ -48,6 +90,8 @@ export default async function LibraryPage({ params }: PageProps<"/s/[tenant]">) 
 
   return (
     <div className="space-y-12">
+      {doorway}
+
       <section className="grid gap-8 rounded-2xl border border-stone-200 bg-white p-6 sm:p-8 md:grid-cols-2 md:items-center dark:border-stone-800 dark:bg-stone-900">
         <div className="space-y-4">
           <p className="text-xs font-semibold tracking-widest text-amber-700 uppercase dark:text-amber-500">

@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import ChurchDoor from "@/components/ChurchDoor";
 import ChurchNav from "@/components/ChurchNav";
 import { LogoMark } from "@/components/Logo";
 import { getSessionUser } from "@/lib/auth/session";
@@ -27,10 +28,35 @@ export default async function TenantLayout({ children, params }: LayoutProps<"/s
   if (!church) notFound();
 
   // The address as it was typed, left by the proxy on its way past.
-  if (facesTheRoom((await headers()).get("x-churchviewer-path"))) return <>{children}</>;
+  const path = (await headers()).get("x-churchviewer-path") ?? "/";
+  if (facesTheRoom(path)) return <>{children}</>;
 
   const user = await getSessionUser();
   const access = user ? await resolveAccess(user, church.id) : null;
+
+  /**
+   * A church is not a website here — it is the tool its staff coordinate with.
+   *
+   * So everything behind this address is for members, and anybody else gets a
+   * door. One check, in the layout, rather than one per page: a page added next
+   * month is private without anybody remembering to make it so, which is the
+   * only version of this that stays true.
+   *
+   * The exception is the page that hands over the projector app. The person who
+   * sets that machine up is whoever has the keys to the building, and asking
+   * them to sign in before they can download the thing that asks them to sign
+   * in is a circle. It gives away nothing the address doesn't.
+   */
+  if (!access && !path.startsWith("/download")) {
+    return (
+      <ChurchDoor
+        name={church.name}
+        slug={church.slug}
+        tagline={church.tagline}
+        path={path}
+      />
+    );
+  }
   const role = access?.role ?? null;
   // A platform admin who is also a member of this church gets no banner, so
   // without this there'd be no way back to the console from inside a church —
@@ -65,6 +91,7 @@ export default async function TenantLayout({ children, params }: LayoutProps<"/s
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <ChurchNav canManage={Boolean(role)} />
+
             {isPlatformAdmin ? (
               <a
                 href={rootUrl("/admin")}
