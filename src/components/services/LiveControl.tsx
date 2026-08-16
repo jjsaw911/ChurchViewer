@@ -5,6 +5,9 @@ import { OperatorLights } from "@/components/services/LinkLights";
 import { useStayAwake } from "@/lib/services/awake";
 import { useNativeStatus } from "@/lib/services/native";
 import ScreenPreview from "@/components/services/ScreenPreview";
+import ScreenPreviewDialog, {
+  type PreviewItem,
+} from "@/components/services/ScreenPreviewDialog";
 import {
   askScreensToReload,
   publishLive,
@@ -108,6 +111,25 @@ export default function LiveControl({
    * that is what they are pressed a hundred times a morning to do.
    */
   const [pending, setPending] = useState<string | null>(null);
+  /**
+   * Walking the service without any of it reaching the room.
+   *
+   * The same thing the planner offers, here as well — because the page
+   * somebody has open ten minutes before a service is this one, and "let me
+   * just check the whole thing through" is a reasonable thing to want from it.
+   */
+  const [rehearsing, setRehearsing] = useState(false);
+
+  const previewPlan: PreviewItem[] = items
+    .map((item) => ({
+      itemId: item.id,
+      title: item.title,
+      slides: item.slides,
+      background: item.background,
+      picture: item.attachment?.kind === "image" ? item.attachment.url : null,
+      video: item.attachment?.kind === "video",
+    }))
+    .filter((entry) => entry.slides.length > 0 || entry.picture || entry.video);
 
   // A choice nobody confirmed is a choice nobody made. Without this it sits
   // there until the next tap, and the tap after that is the one that lands on
@@ -262,6 +284,9 @@ export default function LiveControl({
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      // A rehearsal has its own keys, and they must not also move the room's
+      // screen — that would be the exact opposite of a preview.
+      if (rehearsing) return;
 
       if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
         event.preventDefault();
@@ -283,7 +308,7 @@ export default function LiveControl({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [items, liveItem, publish, state.blank, state.playing, step]);
+  }, [items, liveItem, publish, rehearsing, state.blank, state.playing, step]);
 
   /**
    * Keep the live box where a thumb can reach it.
@@ -307,6 +332,17 @@ export default function LiveControl({
 
   return (
     <div className="space-y-4">
+      {rehearsing ? (
+        <ScreenPreviewDialog
+          serviceId={serviceId}
+          serviceSlug={slug}
+          aspect={screenAspect}
+          plan={previewPlan}
+          itemId={state.itemId ?? previewPlan[0]?.itemId ?? ""}
+          onClose={() => setRehearsing(false)}
+        />
+      ) : null}
+
       {/* The one fact that makes every other control here pointless, said
           before any of them rather than discovered by pressing one. A small
           coloured dot was not enough: it is a dot, and this is somebody's
@@ -355,6 +391,18 @@ export default function LiveControl({
         {/* Second windows belong on the machine wired to the projector. On the
             phone in somebody's hand, these would put the congregation's screen
             on the phone and nowhere else. */}
+        <div className="flex gap-2 text-xs">
+          {previewPlan.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setRehearsing(true)}
+              className="rounded-lg border border-stone-300 px-3 py-1.5 font-medium hover:border-amber-400 dark:border-stone-700"
+            >
+              Run through it
+            </button>
+          ) : null}
+        </div>
+
         {secondScreens ? (
           <div className="flex gap-2 text-xs">
             <button
