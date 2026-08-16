@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth/accounts";
 import { checkPasswordStrength, hashPassword, verifyPassword } from "@/lib/auth/password";
 import { completeReset, resolveResetToken } from "@/lib/auth/reset";
+import { acceptInvite, resolveInvite } from "@/lib/auth/invites";
 import { createSession, destroySession, getSessionUser } from "@/lib/auth/session";
 import { env, rootUrl, tenantUrl } from "@/lib/env";
 import { slugify, validateSlug } from "@/lib/tenant";
@@ -116,6 +117,66 @@ export async function registerAction(
 
   // Outside the try/transaction — redirect() signals by throwing.
   redirect(tenantUrl(slug, "/admin"));
+}
+
+/**
+ * Somebody letting themselves in with a link they were sent.
+ *
+ * Email and a password, and nothing else asked for. The person doing this is a
+ * volunteer standing in a car park with a text message open, and every extra
+ * box is a person who does it later and then doesn't.
+ *
+ * Their name is taken from the address rather than demanded — "joe.smith"
+ * becomes "Joe Smith" — because a list of people is worth reading and nobody
+ * has ever enjoyed being asked to type their own name.
+ */
+export async function joinChurchAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const token = value(formData, "token");
+  const email = normalizeEmail(value(formData, "email"));
+  const password = String(formData.get("password") ?? "");
+
+  const target = await resolveInvite(token);
+  if (!target) {
+    return { error: "That link has expired. Ask whoever sent it for a new one." };
+  }
+
+  if (!isPlausibleEmail(email)) return { error: "Check that email address.", field: "email" };
+
+  const existing = await findUserByEmail(email);
+
+  // An address that already has an account is nearly always the same person,
+  // invited again or joining a second church. Sending them to sign in adds
+  // their membership on the way back, rather than telling them their own email
+  // is taken.
+  if (existing) {
+    redirect(
+      `${rootUrl("/login")}?next=${encodeURIComponent(rootUrl(`/join/${token}`))}` +
+        `&error=${encodeURIComponent("You already have an account — sign in and you'll be let straight in.")}`,
+    );
+  }
+
+  const weak = checkPasswordStrength(password);
+  if (weak) return { error: weak, field: "password" };
+
+  const userId = await createPasswordUser({ name: nameFromEmail(email), email, password });
+  await acceptInvite(token, userId);
+  await createSession(userId);
+
+  redirect(tenantUrl(target.churchSlug, "/present/today"));
+}
+
+/** `joe.smith@x.org` -> `Joe Smith`. Wrong sometimes; never blank. */
+function nameFromEmail(email: string): string {
+  const local = email.split("@")[0] ?? "";
+  const words = local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1));
+
+  return words.join(" ") || email;
 }
 
 export async function loginAction(_previous: FormState, formData: FormData): Promise<FormState> {

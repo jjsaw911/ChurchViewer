@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { memberships, users } from "@/db/schema";
 import { requireChurchAccess } from "@/lib/admin/guard";
+import { createInvite, revokeInvites } from "@/lib/auth/invites";
 import { findUserByEmail, isPlausibleEmail, normalizeEmail } from "@/lib/auth/accounts";
 import { checkPasswordStrength, hashPassword } from "@/lib/auth/password";
 import { revokeAllSessions } from "@/lib/auth/reset";
@@ -34,6 +35,45 @@ async function requireOwner(tenant: string) {
     return { access, denied: "Only an owner can add or remove people." as const };
   }
   return { access, denied: null };
+}
+
+/**
+ * Make a link that lets somebody set themselves up.
+ *
+ * Handing out a temporary password works, and it is also the reason half a
+ * church's volunteers never get an account: it needs the owner and the new
+ * person in the same room, or a password read down a phone. A link can be
+ * texted from a car park.
+ *
+ * One live link per church. Two means one that somebody has forgotten about,
+ * and the whole point of being able to turn it off is knowing what you turned
+ * off.
+ */
+export async function createInviteLinkAction(
+  _previous: PeopleState,
+  formData: FormData,
+): Promise<PeopleState> {
+  const tenant = value(formData, "tenant");
+  const { access, denied } = await requireOwner(tenant);
+  if (denied) return { error: denied };
+
+  await createInvite(access.church.id, access.user.id);
+  revalidatePath(`/s/${tenant}/admin/people`);
+  return { ok: "Link ready. Anyone who opens it can set themselves up." };
+}
+
+/** Turn the link off. Everyone already let in stays in. */
+export async function revokeInviteLinkAction(
+  _previous: PeopleState,
+  formData: FormData,
+): Promise<PeopleState> {
+  const tenant = value(formData, "tenant");
+  const { access, denied } = await requireOwner(tenant);
+  if (denied) return { error: denied };
+
+  await revokeInvites(access.church.id);
+  revalidatePath(`/s/${tenant}/admin/people`);
+  return { ok: "That link stops working now. Nobody already in is affected." };
 }
 
 export async function addPersonAction(

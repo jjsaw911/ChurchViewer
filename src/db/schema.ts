@@ -200,6 +200,40 @@ export const songStatusEnum = pgEnum("song_status", [
   "failed",
 ]);
 
+/**
+ * A link somebody can be sent so they can let themselves in.
+ *
+ * The alternative — an owner typing an email address and a temporary password,
+ * then reading that password down a phone — is the reason most volunteers never
+ * get an account at all. This is one link, texted, and the person chooses their
+ * own password at the other end.
+ *
+ * It is deliberately not a password. It grants the ordinary role and never
+ * ownership, it can be turned off the moment it has done its job, and it stops
+ * working on its own after a few weeks — because a link in a group chat is a
+ * link in a group chat forever.
+ */
+export const churchInvites = pgTable(
+  "church_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    churchId: uuid("church_id")
+      .notNull()
+      .references(() => churches.id, { onDelete: "cascade" }),
+    /** Long and random; this is the whole of the secret. */
+    token: text("token").notNull().unique(),
+    /** Who to blame, and who to tell when it is used. */
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    /** Set the moment somebody decides it has been seen by enough people. */
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /** How many accounts it has let in, which is worth being able to look at. */
+    uses: integer("uses").notNull().default(0),
+  },
+  (t) => [index("church_invites_church_id_idx").on(t.churchId)],
+);
+
 export const songs = pgTable(
   "songs",
   {

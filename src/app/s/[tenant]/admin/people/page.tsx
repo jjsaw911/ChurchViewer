@@ -3,6 +3,8 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { memberships, users } from "@/db/schema";
 import ChurchPeople, { type Person } from "@/components/admin/ChurchPeople";
+import InviteLink from "@/components/admin/InviteLink";
+import { activeInvite } from "@/lib/auth/invites";
 import { requireChurchAccess } from "@/lib/admin/guard";
 
 export const metadata: Metadata = { title: "People" };
@@ -25,6 +27,9 @@ export default async function PeoplePage({ params }: PageProps<"/s/[tenant]/admi
     .where(eq(memberships.churchId, church.id))
     .orderBy(asc(memberships.createdAt));
 
+  // Only an owner may make or see one — it is a way into the church.
+  const invite = role === "owner" ? await activeInvite(church.id) : null;
+
   const people: Person[] = rows.map((row) => ({
     ...row,
     addedAt: row.addedAt.toISOString(),
@@ -38,6 +43,21 @@ export default async function PeoplePage({ params }: PageProps<"/s/[tenant]/admi
           Everyone who can get into {church.name}, and how somebody new is set up.
         </p>
       </div>
+
+      {role === "owner" ? (
+        <InviteLink
+          tenant={tenant}
+          invite={
+            invite
+              ? {
+                  url: invite.url,
+                  expiresAt: invite.expiresAt.toISOString(),
+                  uses: invite.uses,
+                }
+              : null
+          }
+        />
+      ) : null}
 
       <ChurchPeople
         tenant={tenant}
