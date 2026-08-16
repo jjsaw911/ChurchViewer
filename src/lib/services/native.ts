@@ -26,21 +26,24 @@ export type NativeStatus = {
 };
 
 type Bridged = {
+  /** The iPhone and iPad app. */
   webkit?: { messageHandlers?: { live?: { postMessage: (message: NativeStatus) => void } } };
+  /** The Android one. Its bridge takes plain values rather than an object. */
+  ChurchViewerAndroid?: { status: (blank: boolean, playing: boolean, canPlay: boolean) => void };
 };
 
 export function useNativeStatus(status: NativeStatus): void {
   const { blank, playing, canPlay } = status;
 
   useEffect(() => {
-    const handler = (window as unknown as Bridged).webkit?.messageHandlers?.live;
-    if (!handler) return;
+    const host = window as unknown as Bridged;
 
     try {
-      handler.postMessage({ blank, playing, canPlay });
+      host.webkit?.messageHandlers?.live?.postMessage({ blank, playing, canPlay });
+      host.ChurchViewerAndroid?.status(blank, playing, canPlay);
     } catch {
-      // An older build of the app without the handler. The buttons still work;
-      // they just can't show what they did.
+      // An older build of either app, without the bridge. The buttons still
+      // work; they just can't show what they did.
     }
   }, [blank, playing, canPlay]);
 }

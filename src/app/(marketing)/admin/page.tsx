@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import MetaAppForm from "@/components/admin/MetaAppForm";
+import TestFlightForm from "@/components/admin/TestFlightForm";
 import OpenAiKeyForm from "@/components/admin/OpenAiKeyForm";
 import PlatformConsole from "@/components/admin/PlatformConsole";
 import { requirePlatformAdmin } from "@/lib/admin/platform";
@@ -7,6 +8,7 @@ import { listChurches, listPeople, platformStats } from "@/lib/churches";
 import { env } from "@/lib/env";
 import { describeSecret, getSetting, OPENAI_API_KEY } from "@/lib/settings";
 import { META_APP_ID, META_APP_SECRET } from "@/lib/social/meta";
+import { TESTFLIGHT_URL } from "@/lib/settings";
 import { rootUrl } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Platform admin" };
@@ -26,9 +28,10 @@ export default async function PlatformAdminPage() {
     getSetting(OPENAI_API_KEY),
   ]);
 
-  const [metaAppId, metaSecret] = await Promise.all([
+  const [metaAppId, metaSecret, testFlight] = await Promise.all([
     getSetting(META_APP_ID),
     getSetting(META_APP_SECRET),
+    getSetting(TESTFLIGHT_URL),
   ]);
 
   return (
@@ -37,6 +40,8 @@ export default async function PlatformAdminPage() {
         hint={describeSecret(storedKey)}
         fromEnvironment={Boolean(process.env.OPENAI_API_KEY)}
       />
+
+      <TestFlightForm url={testFlight} />
 
       <MetaAppForm
         appId={metaAppId}

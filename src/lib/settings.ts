@@ -16,6 +16,15 @@ import { appSettings } from "@/db/schema";
 
 export const OPENAI_API_KEY = "openai.apiKey";
 
+/**
+ * The public TestFlight invitation for the iPhone remote.
+ *
+ * A setting rather than a constant because it changes when a build expires,
+ * and asking somebody to deploy the site to update a link is how the link ends
+ * up out of date on every church's download page at once.
+ */
+export const TESTFLIGHT_URL = "ios.testflightUrl";
+
 export async function getSetting(key: string): Promise<string | null> {
   const [row] = await db
     .select({ value: appSettings.value })

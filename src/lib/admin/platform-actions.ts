@@ -9,7 +9,7 @@ import { createResetToken, revokeAllSessions } from "@/lib/auth/reset";
 import { requirePlatformAdmin } from "@/lib/admin/platform";
 import { getAnyChurchBySlug } from "@/lib/churches";
 import { rootUrl } from "@/lib/env";
-import { clearSetting, OPENAI_API_KEY, setSetting } from "@/lib/settings";
+import { clearSetting, OPENAI_API_KEY, setSetting, TESTFLIGHT_URL } from "@/lib/settings";
 import { META_APP_ID, META_APP_SECRET } from "@/lib/social/meta";
 import { slugify, validateSlug } from "@/lib/tenant";
 
@@ -123,6 +123,29 @@ export async function clearMetaAppAction(): Promise<PlatformState> {
 
   revalidatePath("/admin");
   return { ok: "Removed. Nobody can connect a new page until it's set again.", scope: "meta" };
+}
+
+/** The TestFlight invitation, or nothing when there isn't one. */
+export async function saveTestFlightAction(
+  _previous: PlatformState,
+  formData: FormData,
+): Promise<PlatformState> {
+  const admin = await requirePlatformAdmin();
+  const url = value(formData, "url");
+
+  if (!url) {
+    await clearSetting(TESTFLIGHT_URL);
+    revalidatePath("/admin");
+    return { ok: "Removed. The download pages stop offering the iPhone app.", scope: "testflight" };
+  }
+
+  if (!/^https:\/\/testflight\.apple\.com\//.test(url)) {
+    return fail("A public TestFlight link starts https://testflight.apple.com/", "testflight");
+  }
+
+  await setSetting(TESTFLIGHT_URL, url, admin.id);
+  revalidatePath("/admin");
+  return { ok: "Saved. Every church's download page offers it now.", scope: "testflight" };
 }
 
 export async function clearOpenAiKeyAction(): Promise<PlatformState> {

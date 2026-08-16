@@ -87,10 +87,12 @@ private struct RemoteView: View {
 /// be hittable without looking — this gets used one-handed, in a dark room, by
 /// somebody also watching a band.
 ///
-/// One shape, one height, one corner radius, and colour used for exactly two
-/// things: which button is the one you want (Next), and what is true right now
-/// (a song running, a screen blanked). Everything else is quiet. A row of
-/// competing colours is unreadable at a glance, and a glance is all this gets.
+/// Six of the same button. Same size, same shape, same colour, and a symbol
+/// rather than a word — the ones every phone already uses, so the bar reads at
+/// a glance and in any language. What changes with state is the symbol itself:
+/// play becomes pause while a song runs, and the crossed-out eye fills in while
+/// the screen is blank. A row of competing colours is unreadable at a glance,
+/// and a glance is all this gets.
 private struct ControlBar: View {
     let status: LiveStatus
     let onBack: () -> Void
@@ -106,112 +108,59 @@ private struct ControlBar: View {
     private var height: CGFloat { 64 }
 
     var body: some View {
-        HStack(spacing: 10) {
-            // The two that aren't part of running a service, kept small and out
-            // of the way of the three that are.
-            quiet("list.bullet.rectangle", "All plans", action: onPlans)
-            quiet("gearshape", "Settings", action: onSettings)
+        HStack(spacing: 8) {
+            key("list.bullet", "Plans", action: onPlans)
+            key("gearshape", "Settings", action: onSettings)
+            key("chevron.left", "Back", action: onBack)
+            key("chevron.right", "Next", action: onNext)
 
             key(
-                title: "Back",
-                symbol: "chevron.left",
-                tint: .secondary.opacity(0.16),
-                foreground: .primary,
-                width: narrow ? 64 : 132,
-                action: onBack
-            )
-
-            // Next is pressed ten times as often as anything else here, so it
-            // gets the room and the one strong colour.
-            key(
-                title: "Next",
-                symbol: "chevron.right",
-                tint: .accentColor,
-                foreground: .white,
-                width: nil,
-                prominent: true,
-                action: onNext
-            )
-
-            // Green while stopped means "this will start"; grey while running
-            // means "this will stop". The word changes with it.
-            key(
-                title: status.playing ? "Stop" : "Play",
-                symbol: status.playing ? "stop.fill" : "play.fill",
-                tint: status.playing ? Color.primary.opacity(0.85) : Color.green,
-                foreground: status.playing ? Color(.systemBackground) : .white,
-                width: narrow ? 64 : 128,
+                status.playing ? "pause.fill" : "play.fill",
+                status.playing ? "Pause" : "Play",
                 action: onPlay
             )
             .opacity(status.canPlay ? 1 : 0.35)
             .disabled(!status.canPlay)
 
-            // Filled red only while the screen really is blank, so the button
-            // is the answer to "is it blank?" and not just a way to ask.
             key(
-                title: "Blank",
-                symbol: status.blank ? "eye.slash.fill" : "eye.slash",
-                tint: status.blank ? Color.red : Color.secondary.opacity(0.16),
-                foreground: status.blank ? .white : .primary,
-                width: narrow ? 64 : 128,
+                status.blank ? "eye.slash.fill" : "eye.slash",
+                status.blank ? "Blanked" : "Blank",
                 action: onBlank
             )
         }
-        .padding(.horizontal, narrow ? 10 : 16)
+        .padding(.horizontal, narrow ? 8 : 16)
         .padding(.vertical, 10)
         .background(.bar)
         .animation(.easeOut(duration: 0.15), value: status)
     }
 
-    /// A small, unobtrusive icon button.
-    private func quiet(
+    /// One button. There is only one kind.
+    private func key(
         _ symbol: String,
         _ label: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .medium))
-                .frame(width: narrow ? 42 : 52, height: height)
-                .foregroundStyle(.secondary)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.secondary.opacity(0.10))
-                )
+            VStack(spacing: 3) {
+                Image(systemName: symbol)
+                    .font(.system(size: 22, weight: .semibold))
+                // The word under the symbol rather than instead of it: the
+                // symbol is what gets recognised, the word is what settles it
+                // the first time somebody uses this.
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, minHeight: height)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.secondary.opacity(0.14))
+            )
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
-    }
-
-    /// One of the three that run the service. All the same shape.
-    private func key(
-        title: String,
-        symbol: String,
-        tint: Color,
-        foreground: Color,
-        width: CGFloat?,
-        prominent: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 7) {
-                Image(systemName: symbol)
-                    .font(.system(size: prominent ? 20 : 17, weight: .semibold))
-                // On a phone there are about a hundred points less to go round,
-                // so the words come off rather than the buttons shrinking: a
-                // smaller target is worse than an unlabelled one when nobody is
-                // looking at their hands anyway.
-                if !narrow || prominent {
-                    Text(title).font(.system(size: prominent ? 19 : 16, weight: .semibold))
-                }
-            }
-            .foregroundStyle(foreground)
-            .frame(maxWidth: width == nil ? .infinity : nil, minHeight: height)
-            .frame(width: width)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(tint))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
     }
 }
 
