@@ -1,6 +1,7 @@
 "use client";
 
 import BackgroundLayer from "@/components/services/BackgroundLayer";
+import SlideCanvas from "@/components/services/SlideCanvas";
 import type { Background } from "@/lib/media/background";
 import type { SlidePayload } from "@/lib/songs/types";
 
@@ -45,7 +46,7 @@ export default function ScreenPreview({
 
   return (
     <div
-      style={{ aspectRatio: ratio }}
+      style={{ aspectRatio: ratio, containerType: "size" }}
       title={
         slideCount
           ? `${slideCount} slide${slideCount === 1 ? "" : "s"} · shown at ${aspect}`
@@ -65,31 +66,13 @@ export default function ScreenPreview({
           <BackgroundLayer background={background} still />
 
           {slide ? (
-            <div
-              className={`absolute inset-0 flex flex-col items-center justify-center text-center ${
-                full ? "gap-3 px-10" : "gap-px px-1"
-              }`}
-            >
-              {slide.label && full ? (
-                <p className="text-xs font-semibold tracking-[0.3em] text-white/40 uppercase">
-                  {slide.label}
-                </p>
-              ) : null}
-
-              {/* A row shows the first three lines; the big one shows all of
-                  them, because fitting is the question it's there to answer. */}
-              {(full ? slide.lines : slide.lines.slice(0, 3)).map((line, index) => (
-                <p
-                  key={index}
-                  className={
-                    full
-                      ? "w-full text-2xl leading-tight font-semibold text-balance text-white lg:text-4xl"
-                      : "w-full truncate text-[0.5rem] leading-tight font-semibold text-white"
-                  }
-                >
-                  {line}
-                </p>
-              ))}
+            // The projector, shrunk — not a smaller design of the same words.
+            // Every size inside is a percentage of this box, so a line that
+            // wraps on the wall wraps here too. A preview that says "that fits"
+            // on Thursday and leaves the room reading two thirds of a sentence
+            // on Sunday is worse than no preview at all.
+            <div className="absolute inset-0">
+              <SlideCanvas slide={slide} />
             </div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">

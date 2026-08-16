@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import BackgroundLayer from "@/components/services/BackgroundLayer";
+import SlideCanvas from "@/components/services/SlideCanvas";
 import { DisplayLights } from "@/components/services/LinkLights";
 import { useStayAwake } from "@/lib/services/awake";
 import {
@@ -398,26 +399,20 @@ export default function LiveOutput({
   const background = state.blank ? null : (item?.background ?? fallbackBackground);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black px-12 text-white">
+    <div
+      // What the slide's sizes are measured against.
+      style={{ containerType: "size" }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black text-white"
+    >
       {/* Words first: whatever is behind them is darkened, because a line
           nobody at the back can read is worse than no picture at all. */}
       <BackgroundLayer background={background} />
 
       {slide ? (
-        <div className="space-y-6 text-center">
-          {slide.label ? (
-            <p className="text-sm font-semibold tracking-[0.3em] text-white/40 uppercase">
-              {slide.label}
-            </p>
-          ) : null}
-          {slide.lines.map((line, index) => (
-            <p
-              key={index}
-              className="text-4xl leading-tight font-semibold text-balance sm:text-5xl lg:text-6xl"
-            >
-              {line}
-            </p>
-          ))}
+        // The same component the previews use, at the same proportions — so
+        // what somebody checked on Thursday is what the room reads on Sunday.
+        <div className="absolute inset-0">
+          <SlideCanvas slide={slide} />
         </div>
       ) : state.blank ? (
         // Blanked on purpose. Nothing at all, not even the church's name — the

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import MediaField from "@/components/admin/MediaField";
 import ActivitySlides from "@/components/services/ActivitySlides";
@@ -149,6 +149,8 @@ type Shared = {
   focus: (focus: Focus) => void;
   /** The shape of the screen, so every preview is drawn as the room sees it. */
   screenAspect: string;
+  /** Everything with something to show, in order, for a run-through. */
+  plan: Focus[];
   songOptions: { id: string; title: string }[];
   slideSources: SlideSource[];
   uploadsEnabled: boolean;
@@ -663,12 +665,8 @@ function ActivityBlock({
           serviceId={shared.serviceId}
           serviceSlug={shared.serviceSlug}
           aspect={shared.screenAspect}
-          title={item.title}
+          plan={shared.plan}
           itemId={item.id}
-          slides={slides}
-          background={item.background}
-          picture={picture}
-          video={isVideo}
           onClose={() => setPreviewing(false)}
         />
       ) : null}
@@ -968,32 +966,51 @@ export default function ServicePlanner({
   const [pending, setPending] = useState<Record<string, number>>({});
   const [focused, setFocused] = useState<Focus | null>(null);
   const [showCorner, setShowCorner] = useState(true);
+  /** Set while somebody is walking the whole service in the preview. */
+  const [rehearsing, setRehearsing] = useState<string | null>(null);
 
   /**
    * What the corner shows before anybody has pointed at anything: the first
    * activity that actually puts something on the screen, which is what the
    * service opens with.
    */
+  const asFocus = useCallback((item: PlanItem): Focus => {
+    const slides = effectiveSlides(item);
+    return {
+      itemId: item.id,
+      title: item.title,
+      slides,
+      background: item.background,
+      picture:
+        slides.length === 0 && item.attachment?.kind === "image"
+          ? item.attachment.url
+          : null,
+      video: item.attachment?.kind === "video" || item.attachment?.kind === "youtube",
+    };
+  }, []);
+
+  /**
+   * The service as a run of screens.
+   *
+   * Only the ones that put something up: walking through a rehearsal should not
+   * stop on the worship heading that exists to hold three songs, or on a prayer
+   * with nothing written for it.
+   */
+  const runnable = useMemo<Focus[]>(
+    () =>
+      items
+        .map(asFocus)
+        .filter((entry) => entry.slides.length > 0 || entry.picture || entry.video),
+    [asFocus, items],
+  );
+
   const opening = useMemo<Focus | null>(() => {
     const first =
       items.find((item) => effectiveSlides(item).length > 0) ??
       items.find((item) => item.attachment?.kind === "image") ??
       items[0];
-    if (!first) return null;
-
-    const slides = effectiveSlides(first);
-    return {
-      itemId: first.id,
-      title: first.title,
-      slides,
-      background: first.background,
-      picture:
-        slides.length === 0 && first.attachment?.kind === "image"
-          ? first.attachment.url
-          : null,
-      video: first.attachment?.kind === "video" || first.attachment?.kind === "youtube",
-    };
-  }, [items]);
+    return first ? asFocus(first) : null;
+  }, [asFocus, items]);
 
   // Sticky: the last thing pointed at stays up, because a preview that clears
   // itself the moment the mouse moves away is one nobody can look at.
@@ -1079,6 +1096,7 @@ export default function ServicePlanner({
     tenant,
     serviceId,
     serviceSlug,
+    plan: runnable,
     focus: setFocused,
     screenAspect,
     songOptions,
@@ -1180,6 +1198,19 @@ export default function ServicePlanner({
               hide
             </button>
           </div>
+
+          {/* Sitting at the projector on a Thursday, the useful thing is not
+              one slide — it is the whole morning, in order, without any of it
+              reaching the screen. */}
+          {runnable.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setRehearsing(runnable[0].itemId)}
+              className="w-full rounded-lg border border-stone-300 px-3 py-1.5 text-xs font-medium hover:border-amber-400 dark:border-stone-700"
+            >
+              Run through the whole service
+            </button>
+          ) : null}
         </aside>
       ) : null}
 
@@ -1191,6 +1222,17 @@ export default function ServicePlanner({
         >
           Show the screen preview
         </button>
+      ) : null}
+
+      {rehearsing ? (
+        <ScreenPreviewDialog
+          serviceId={serviceId}
+          serviceSlug={serviceSlug}
+          aspect={screenAspect}
+          plan={runnable}
+          itemId={rehearsing}
+          onClose={() => setRehearsing(null)}
+        />
       ) : null}
 
       {dropError ? (
