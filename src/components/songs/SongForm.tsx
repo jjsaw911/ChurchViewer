@@ -135,7 +135,7 @@ export default function SongForm({
           accept="video/*"
           kinds={["video"]}
           uploadsEnabled={uploadsEnabled}
-          hint="A video your church holds — the service recording, the desk mix. The worker takes the audio out of it, which also gets it under the size the transcription API accepts. Not a YouTube link: use the field above for that."
+          hint="A video your church holds — the service recording, the desk mix. Upload it, or paste a direct link to the file and the server fetches it for you: Dropbox or Drive with a direct-download link, your own site, or the original downloaded from YouTube Studio. The worker takes the audio out, which also gets it under the size the transcription API accepts. A YouTube page link won't work here — that goes in the field above."
         />
 
         <MediaField

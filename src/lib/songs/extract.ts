@@ -148,6 +148,15 @@ async function download(location: string, to: string, budget: number): Promise<v
     throw new Error("The video has to be at an http(s) location.");
   }
 
+  // A page is not a video. Caught here as well as at the form, because a
+  // location can also arrive from the media library or an older row.
+  if (/(^|\.)(youtube\.com|youtu\.be|vimeo\.com)$/i.test(url.hostname)) {
+    throw new Error(
+      "That's a link to a page rather than to a video file. Download the original from " +
+        "YouTube Studio if it's your church's own upload, and put that file here.",
+    );
+  }
+
   const response = await fetch(url);
   if (!response.ok || !response.body) {
     throw new Error(`Couldn't download the video (${response.status}).`);

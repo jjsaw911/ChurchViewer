@@ -63,6 +63,26 @@ export async function saveSongAction(_previous: SongState, formData: FormData): 
     };
   }
 
+  /**
+   * A link to a video file, not a link to a page with a video on it.
+   *
+   * Pasting a YouTube address here is the commonest thing anybody tries, and
+   * what comes back down the wire is a web page — so the worker would download
+   * half a megabyte of HTML, hand it to ffmpeg, and fail an hour later in a log
+   * nobody is reading. Said here instead, with where the file actually comes
+   * from.
+   */
+  const videoSrc = optional(formData, "videoSrc");
+  if (videoSrc && /(^|\.)(youtube\.com|youtu\.be|vimeo\.com)/i.test(hostOf(videoSrc))) {
+    return {
+      error:
+        "That's a link to a page, not to a video file. If it's your church's own upload, " +
+        "download the original from YouTube Studio and put that here — the YouTube link " +
+        "itself goes in the field above.",
+      values: submitted(formData),
+    };
+  }
+
   const values = {
     churchId: church.id,
     slug,
@@ -71,7 +91,7 @@ export async function saveSongAction(_previous: SongState, formData: FormData): 
     ccliNumber: value(formData, "ccliNumber"),
     sourceUrl,
     audioSrc: optional(formData, "audioSrc"),
-    videoSrc: optional(formData, "videoSrc"),
+    videoSrc,
     backgroundSrc: optional(formData, "backgroundSrc"),
     durationSeconds: parseClock(value(formData, "duration")),
   };
@@ -271,4 +291,13 @@ export async function deleteSongAction(formData: FormData): Promise<void> {
 
   revalidatePath(`/s/${tenant}`, "layout");
   redirect("/admin/songs");
+}
+
+/** The host of something that may not be a URL at all. */
+function hostOf(location: string): string {
+  try {
+    return new URL(location).hostname;
+  } catch {
+    return "";
+  }
 }
