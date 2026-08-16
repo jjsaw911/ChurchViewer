@@ -73,31 +73,52 @@ export default async function DownloadPage({ params }: PageProps<"/s/[tenant]/do
       </div>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Setting it up</h2>
+        <h2 className="text-xl font-semibold">The quick way</h2>
+        <p className="text-stone-700 dark:text-stone-300">
+          Open <strong>Terminal</strong> on the projector computer &mdash; press ⌘Space,
+          type &ldquo;terminal&rdquo;, press Enter &mdash; then paste this line and press
+          Enter:
+        </p>
+        <pre className="overflow-x-auto rounded-xl bg-stone-900 px-4 py-3 text-sm text-stone-100">
+          <code>{`curl -fsSL https://${church.slug}.churchviewer.com/downloads/install.sh | bash -s ${church.slug}`}</code>
+        </pre>
+        <p className="text-sm text-stone-500">
+          That downloads it, installs it into Applications, sets it to fill the projector
+          and open when the Mac starts up, and points it at {church.name}. It asks nothing.
+          You can{" "}
+          <a href="/downloads/install.sh" className="underline underline-offset-2">
+            read the line-by-line
+          </a>{" "}
+          first if you&rsquo;d rather.
+        </p>
+      </section>
+
+      <section className="space-y-4 border-t border-stone-200 pt-6 dark:border-stone-800">
+        <h2 className="text-xl font-semibold">Or by hand</h2>
         <ol className="space-y-4 text-stone-700 dark:text-stone-300">
           <li>
-            <strong>1.</strong> Unzip it, then <strong>right-click</strong>{" "}
+            <strong>1.</strong> Download it above and double-click the zip to unpack it.
+          </li>
+          <li>
+            <strong>2.</strong> Open <strong>Terminal</strong>, type{" "}
             <code className="rounded bg-stone-100 px-1.5 py-0.5 text-sm dark:bg-stone-800">
-              install.command
+              bash
             </code>{" "}
-            and choose <strong>Open</strong>.
+            and a space, then drag <strong>install.command</strong> from the unpacked
+            folder into the Terminal window and press Enter.
             <p className="pt-1 text-sm text-stone-500">
-              Double-clicking will refuse, and that is not a fault. macOS only trusts
-              software from developers who pay Apple a yearly fee, and this doesn&rsquo;t —
-              right-click and Open is how you say you know where it came from. It happens
-              once.
+              Double-clicking it will refuse, and that is not a fault. macOS only opens
+              downloaded software from developers who pay Apple a yearly fee, and this
+              doesn&rsquo;t &mdash; so it has to be run by name rather than by
+              double-click. Once installed, the app itself opens normally every time.
             </p>
           </li>
           <li>
-            <strong>2.</strong> When it asks for your church, type{" "}
+            <strong>3.</strong> When it asks for your church, type{" "}
             <code className="rounded bg-stone-100 px-1.5 py-0.5 text-sm dark:bg-stone-800">
               {church.slug}
             </code>
-            .
-          </li>
-          <li>
-            <strong>3.</strong> Say yes to filling the projector, and yes to opening at
-            startup.
+            , and say yes to filling the projector and opening at startup.
           </li>
           <li>
             <strong>4.</strong> Sign in once with a {church.name} account. It stays signed

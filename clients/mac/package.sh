@@ -36,11 +36,14 @@ ChurchViewer Display
 This is for the computer wired to the projector. It shows the words; the
 service is driven from a phone, an iPad or another computer.
 
-1. Right-click "install.command" and choose Open, then confirm.
+1. Open Terminal (press Command-Space, type "terminal", press Enter), type
+   the word bash and a space, then drag "install.command" into the Terminal
+   window and press Enter.
 
-   Double-clicking will refuse. macOS only trusts software from developers who
-   pay Apple a yearly fee, and this doesn't — right-click and Open is how you
-   say you know where it came from. It only happens this once.
+   Double-clicking will refuse, and that is not a fault. macOS only opens
+   downloaded software from developers who pay Apple a yearly fee, and this
+   doesn't — so it has to be run by name. Once installed, the app itself opens
+   normally every time.
 
 2. Type your church's name when it asks. If your church is at
    citychurch.churchviewer.com, that's "citychurch".
