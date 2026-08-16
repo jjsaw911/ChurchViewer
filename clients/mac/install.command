@@ -9,10 +9,10 @@
 # fails on a Sunday.
 #
 #   ./install.command
-#   ./install.command --quiet --url https://church.churchviewer.com/... --fullscreen --login
+#   ./install.command --quiet --church citychurch --fullscreen --login
 #
 # Options (all optional; without them it asks):
-#   --url <address>   the output screen to show
+#   --church <name>   the church, e.g. citychurch
 #   --fullscreen      fill the chosen screen as soon as it opens
 #   --login           open automatically when this Mac starts up
 #   --prefix <dir>    install somewhere other than /Applications
@@ -24,14 +24,14 @@ cd "$(dirname "$0")"
 APP_NAME="ChurchViewer Display"
 BUNDLE_ID="com.churchviewer.display"
 PREFIX="/Applications"
-URL=""
+CHURCH=""
 FULLSCREEN=""
 LOGIN=""
 QUIET=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --url) URL="${2:-}"; shift 2 ;;
+    --church) CHURCH="${2:-}"; shift 2 ;;
     --fullscreen) FULLSCREEN=1; shift ;;
     --login) LOGIN=1; shift ;;
     --prefix) PREFIX="${2:-}"; shift 2 ;;
@@ -100,23 +100,29 @@ if [ -z "$QUIET" ]; then
   dialog "ChurchViewer Display" \
     "This installs the display app on this Mac — the one wired to the projector.
 
-You'll need the address of the output screen. In a browser, open a service plan, press Run it, then Open the output screen, and copy that window's address." \
+All it needs is your church's name: the first part of your address. If your church is at citychurch.churchviewer.com, that's citychurch." \
     'buttons {"Cancel", "Continue"} default button "Continue"' >/dev/null || exit 0
 
-  if [ -z "$URL" ]; then
-    # Most people have just copied it, so offer what's on the clipboard.
+  if [ -z "$CHURCH" ]; then
+    # Whatever was copied is usually the address, so take the name out of it.
     CLIPBOARD=$(pbpaste 2>/dev/null | head -1 || true)
-    case "$CLIPBOARD" in
-      http*churchviewer*|http*) SUGGESTION="$CLIPBOARD" ;;
-      *) SUGGESTION="https://" ;;
+    SUGGESTION=$(printf '%s' "$CLIPBOARD" \
+      | sed -E 's#^[a-z]+://##; s#/.*$##; s#\.churchviewer\.com$##' \
+      | tr '[:upper:]' '[:lower:]')
+    case "$SUGGESTION" in
+      ""|*[!a-z0-9-]*) SUGGESTION="" ;;
     esac
 
-    URL=$(ask_text "Address of the output screen:" "$SUGGESTION") || exit 0
+    CHURCH=$(ask_text "Your church's name:" "$SUGGESTION") || exit 0
   fi
 
-  case "$URL" in
-    http://*|https://*) ;;
-    *) fail "That doesn't look like a web address: $URL" ;;
+  # Typed in full, or pasted from a browser: take the name out of either.
+  CHURCH=$(printf '%s' "$CHURCH" \
+    | sed -E 's#^[a-z]+://##; s#/.*$##; s#\.churchviewer\.com$##' \
+    | tr '[:upper:]' '[:lower:]')
+
+  case "$CHURCH" in
+    ""|*[!a-z0-9-]*) fail "That doesn't look like a church name: $CHURCH" ;;
   esac
 
   ask_yes_no "Fill the projector as soon as the app opens?" && FULLSCREEN=1 || FULLSCREEN=""
@@ -141,7 +147,14 @@ cp -R "$APP_SOURCE" "$TARGET" || fail "Couldn't copy the app into $PREFIX. Is it
 xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null || true
 
 echo "==> Settings"
-[ -n "$URL" ] && defaults write "$BUNDLE_ID" displayURL -string "$URL"
+# Both windows, pointed at whichever service the church is on that morning —
+# so nobody has to come back and change this next week.
+if [ -n "$CHURCH" ]; then
+  defaults write "$BUNDLE_ID" projectorURL \
+    -string "https://$CHURCH.churchviewer.com/present/today/screen"
+  defaults write "$BUNDLE_ID" stageURL \
+    -string "https://$CHURCH.churchviewer.com/present/today/stage"
+fi
 defaults write "$BUNDLE_ID" fullScreenOnLaunch -bool "$([ -n "$FULLSCREEN" ] && echo true || echo false)"
 
 AGENT="$HOME/Library/LaunchAgents/$BUNDLE_ID.plist"

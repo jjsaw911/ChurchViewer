@@ -33,16 +33,31 @@ cat > "$STAGE/READ ME FIRST.txt" << 'TXT'
 ChurchViewer Display
 ====================
 
-1. Double-click "install.command".
-2. Paste the address of the output screen when it asks. (In a browser: open the
-   service plan, press Run it, then Open the output screen, and copy that
-   window's address.)
-3. Say yes to filling the projector, and yes to opening at startup.
-4. When the app opens, sign in once, then press Command-comma and choose which
-   screen the projector is.
+This is for the computer wired to the projector. It shows the words; the
+service is driven from a phone, an iPad or another computer.
 
-If macOS says the installer is from an unidentified developer: right-click it,
-choose Open, and confirm. That only happens the first time.
+1. Right-click "install.command" and choose Open, then confirm.
+
+   Double-clicking will refuse. macOS only trusts software from developers who
+   pay Apple a yearly fee, and this doesn't — right-click and Open is how you
+   say you know where it came from. It only happens this once.
+
+2. Type your church's name when it asks. If your church is at
+   citychurch.churchviewer.com, that's "citychurch".
+
+3. Say yes to filling the projector and yes to opening at startup.
+
+4. When it opens, sign in once with your ChurchViewer account. It stays
+   signed in.
+
+5. Press Command-comma and pick which screen is the projector.
+
+Then it looks after itself: every Sunday it shows whatever service that church
+has planned for the day, without anybody changing a setting.
+
+Command-Shift-F fills the chosen screen. Command-Escape leaves full screen.
+Command-R reloads. The little TV icon in the menu bar has everything else,
+including a pause for the music.
 TXT
 
 echo "==> Zipping"

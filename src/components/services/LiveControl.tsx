@@ -313,8 +313,12 @@ export default function LiveControl({
           Sunday morning. */}
       {presence.display === 0 ? (
         <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200">
-          No screen is connected. Nothing you press here will reach a projector
-          until the display is open on the church computer.
+          No screen is connected. Nothing you press here will reach a projector until the
+          display is open on the church computer.{" "}
+          <a href="/download" className="underline underline-offset-2">
+            Get the display app
+          </a>
+          .
         </p>
       ) : null}
 
