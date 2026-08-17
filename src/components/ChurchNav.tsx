@@ -1,48 +1,46 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
  * Getting around a church.
  *
- * Two audiences share these pages and they want different things. Someone who
- * came to watch last Sunday's message wants the library; someone on staff wants
- * this Sunday's plan, the songs in it, and the files behind those — and they
- * move between the four all morning.
+ * Eleven links across the top was a menu that wrapped onto a second row and
+ * made somebody read all of it to find the one thing they came for. Nearly all
+ * of that reading was wasted: a church touches Plans, Songs and Media every
+ * week, talks to each other most weeks, and opens the rest a handful of times a
+ * year.
  *
- * So there are two rows rather than one long line of links. The second only
- * exists for people who can act on it, and it says where you are, because a set
- * of admin pages that all look the same is the thing that makes them hard to
- * navigate.
+ * So the weekly things are the menu, and everything else is behind one word.
+ * That isn't hiding them — a list of eleven equal things hides all of them
+ * equally, which is worse.
  */
 
-type Item = { href: string; label: string };
+type Item = { href: string; label: string; hint?: string };
 
-/**
- * The two pages that read rather than edit.
- *
- * Series used to appear twice — once to look at, once to manage — which is one
- * word in two places meaning almost the same thing, and a menu that makes
- * somebody stop and choose. Now the staff page does both: the list is on it,
- * and so is the form that adds to it. `/series` still exists for the links out
- * of a sermon; it just isn't a thing to pick from a menu.
- */
-const PUBLIC_LINKS: Item[] = [{ href: "/", label: "Library" }];
-
-const STAFF_LINKS: Item[] = [
+/** What a church opens most Sundays. */
+const OFTEN: Item[] = [
   { href: "/admin/services", label: "Plans" },
   { href: "/admin/songs", label: "Songs" },
   { href: "/admin/media", label: "Media" },
-  { href: "/admin", label: "Sermons" },
-  { href: "/admin/series", label: "Series" },
-  { href: "/admin/board", label: "Noticeboard" },
-  { href: "/admin/inbox", label: "Messages" },
-  { href: "/admin/social", label: "Social" },
-  { href: "/admin/people", label: "People" },
-  // Not an admin page — it's public, so a volunteer with the keys to the
-  // building can be sent straight to it — but this is where staff look for it.
-  { href: "/download", label: "Display app" },
+];
+
+/** Talking to each other: everyone at once, or one person. */
+const TALK: Item[] = [
+  { href: "/admin/board", label: "Noticeboard", hint: "Everyone at the church" },
+  { href: "/admin/inbox", label: "Messages", hint: "One person, like an internal email" },
+];
+
+/** Set up once, opened occasionally. */
+const RARELY: Item[] = [
+  { href: "/", label: "Library", hint: "Recordings the church has kept" },
+  { href: "/admin", label: "Sermons", hint: "Add and publish a recording" },
+  { href: "/admin/series", label: "Series", hint: "Group messages into a run" },
+  { href: "/admin/social", label: "Social", hint: "Post to Facebook and Instagram" },
+  { href: "/admin/people", label: "People", hint: "Who can get in, and invitations" },
+  { href: "/download", label: "Display app", hint: "For the projector computer" },
 ];
 
 /** Whether a link is the page you're on, or the section you're inside. */
@@ -52,7 +50,7 @@ function isCurrent(pathname: string, href: string): boolean {
   const path = pathname.replace(/^\/s\/[^/]+/, "") || "/";
 
   if (href === "/") return path === "/";
-  // "/admin" is the messages list and the parent of everything else; without
+  // "/admin" is the sermons list and the parent of everything else; without
   // this it would light up on every admin page.
   if (href === "/admin") return path === "/admin" || path.startsWith("/admin/sermons");
   return path === href || path.startsWith(`${href}/`);
@@ -60,34 +58,99 @@ function isCurrent(pathname: string, href: string): boolean {
 
 export default function ChurchNav({ canManage }: { canManage: boolean }) {
   const pathname = usePathname();
+  const more = useRef<HTMLDivElement | null>(null);
 
-  const link = (item: Item, current: boolean) => (
-    <Link
-      key={item.href}
-      href={item.href}
-      aria-current={current ? "page" : undefined}
-      className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium ${
-        current
-          ? "bg-amber-700 text-white"
-          : "hover:bg-stone-100 dark:hover:bg-stone-800"
-      }`}
-    >
-      {item.label}
-    </Link>
-  );
+  /**
+   * Open, and the page it was opened on.
+   *
+   * Both in one piece of state so that moving to another page closes it as a
+   * matter of arithmetic rather than as an effect that has to run and re-render
+   * to say so. A menu still hanging open over the page you just navigated to is
+   * a menu covering the thing you clicked towards.
+   */
+  const [opened, setOpened] = useState<string | null>(null);
+  const shown = opened === pathname;
+
+  useEffect(() => {
+    if (!shown) return;
+    const away = (event: MouseEvent) => {
+      if (!more.current?.contains(event.target as Node)) setOpened(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpened(null);
+    };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [shown]);
+
+  const link = (item: Item) => {
+    const current = isCurrent(pathname, item.href);
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        aria-current={current ? "page" : undefined}
+        className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium ${
+          current ? "bg-amber-700 text-white" : "hover:bg-stone-100 dark:hover:bg-stone-800"
+        }`}
+      >
+        {item.label}
+      </Link>
+    );
+  };
+
+  if (!canManage) return null;
+
+  const inMore = [...RARELY].some((item) => isCurrent(pathname, item.href));
 
   return (
-    // Scrolls sideways rather than wrapping on a narrow screen: an iPad in
-    // portrait shouldn't push the page content down two rows to make room.
-    <nav className="-mx-1 flex max-w-full items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {PUBLIC_LINKS.map((item) => link(item, isCurrent(pathname, item.href)))}
+    <nav className="flex items-center gap-1">
+      {OFTEN.map(link)}
+      <span className="mx-1 h-5 w-px shrink-0 bg-stone-200 dark:bg-stone-700" />
+      {TALK.map(link)}
 
-      {canManage ? (
-        <>
-          <span className="mx-2 h-5 w-px shrink-0 bg-stone-200 dark:bg-stone-700" />
-          {STAFF_LINKS.map((item) => link(item, isCurrent(pathname, item.href)))}
-        </>
-      ) : null}
+      <div className="relative" ref={more}>
+        <button
+          type="button"
+          onClick={() => setOpened(shown ? null : pathname)}
+          aria-expanded={shown}
+          aria-haspopup="menu"
+          className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium ${
+            inMore ? "bg-amber-700 text-white" : "hover:bg-stone-100 dark:hover:bg-stone-800"
+          }`}
+        >
+          More <span aria-hidden>▾</span>
+        </button>
+
+        {shown ? (
+          // With a line about each, because the difference between Library and
+          // Sermons, or Noticeboard and Messages, is not obvious from the word.
+          <div
+            role="menu"
+            className="absolute right-0 z-50 mt-1 w-72 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-lg dark:border-stone-700 dark:bg-stone-900"
+          >
+            {RARELY.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                role="menuitem"
+                className={`block px-3 py-2 hover:bg-stone-100 dark:hover:bg-stone-800 ${
+                  isCurrent(pathname, item.href) ? "bg-amber-50 dark:bg-amber-950/40" : ""
+                }`}
+              >
+                <span className="block text-sm font-medium">{item.label}</span>
+                {item.hint ? (
+                  <span className="block text-xs text-stone-500">{item.hint}</span>
+                ) : null}
+              </Link>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </nav>
   );
 }
