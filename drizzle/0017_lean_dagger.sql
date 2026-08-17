@@ -1,0 +1,1 @@
+ALTER TABLE "songs" ADD COLUMN "background_src" text;

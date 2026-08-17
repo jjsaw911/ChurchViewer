@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="ChurchViewer">
+  <defs>
+    <linearGradient id="frame" x1="14" y1="96" x2="114" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F7BFB" />
+      <stop offset="1" stop-color="#A855F7" />
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#6C8BFF" stop-opacity="0.55" />
+      <stop offset="1" stop-color="#6C8BFF" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- A tile rather than a bare mark: the icon has to hold its own on a light
+       browser tab and a dark one, and the brand is dark-on-dark by design. -->
+  <rect width="128" height="128" rx="28" fill="#0E1117" />
+  <ellipse cx="64" cy="74" rx="46" ry="26" fill="url(#glow)" />
+
+  <!-- The screen, open at the bottom where the church stands in it. -->
+  <path
+    d="M38 96 H26 A12 12 0 0 1 14 84 V44 A12 12 0 0 1 26 32 H102 A12 12 0 0 1 114 44 V84 A12 12 0 0 1 102 96 H90"
+    fill="none"
+    stroke="url(#frame)"
+    stroke-width="7"
+    stroke-linecap="round"
+  />
+
+  <rect x="60" y="38" width="8" height="24" rx="1.5" fill="#232B3E" />
+  <rect x="53" y="45" width="22" height="7" rx="1.5" fill="#232B3E" />
+  <path d="M64 54 L86 72 V96 H42 V72 Z" fill="#232B3E" />
+  <path d="M57 96 V82 a7 7 0 0 1 14 0 V96 Z" fill="url(#frame)" />
+</svg>

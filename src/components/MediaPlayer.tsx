@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Media } from "@/lib/types";
+import type { SermonDetail } from "@/lib/types";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -30,7 +30,7 @@ type Props = {
   /** Keys the saved playback position — one entry per sermon. */
   slug: string;
   title: string;
-  media: Media;
+  media: SermonDetail["media"];
 };
 
 export default function MediaPlayer({ slug, title, media }: Props) {
@@ -104,7 +104,7 @@ export default function MediaPlayer({ slug, title, media }: Props) {
           <video
             ref={attach}
             aria-label={title}
-            poster={media.poster}
+            poster={media.poster ?? undefined}
             controls
             playsInline
             preload="metadata"

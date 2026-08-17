@@ -1,0 +1,33 @@
+# /etc/systemd/system/churchviewer.service
+[Unit]
+Description=ChurchViewer web app (Next.js)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=churchviewer
+Group=churchviewer
+WorkingDirectory=/srv/churchviewer
+
+# `next start` reads PORT; nginx proxies to 127.0.0.1:3000. Binding to loopback
+# keeps the app off the public interface even if the firewall opens up.
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+EnvironmentFile=/srv/churchviewer/.env.local
+
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+
+# Next.js finishes in-flight requests on SIGTERM.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

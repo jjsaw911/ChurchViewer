@@ -1,0 +1,144 @@
+"use client";
+
+import { useActionState } from "react";
+import MediaField from "@/components/admin/MediaField";
+import { saveServiceAction, type ServiceState } from "@/lib/services/actions";
+
+const field =
+  "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900";
+
+export type ServiceFormValues = {
+  slug: string;
+  title: string;
+  heldOn: string;
+  startsAt: string;
+  backgroundSrc: string | null;
+  screenAspect: string;
+  notes: string;
+};
+
+export default function ServiceForm({
+  tenant,
+  service,
+  uploadsEnabled,
+}: {
+  tenant: string;
+  service?: ServiceFormValues;
+  uploadsEnabled: boolean;
+}) {
+  const [state, action, pending] = useActionState<ServiceState, FormData>(saveServiceAction, {});
+  const echoed = state.values;
+  const initial = (name: string, fallback: string) => echoed?.[name] ?? fallback;
+  const formKey = echoed ? JSON.stringify(echoed).length : 0;
+
+  return (
+    <form action={action} className="space-y-5" key={`service-${formKey}`}>
+      <input type="hidden" name="tenant" value={tenant} />
+      {service ? <input type="hidden" name="originalSlug" value={service.slug} /> : null}
+
+      <div className="grid gap-5 sm:grid-cols-3">
+        <div className="space-y-1.5 sm:col-span-3">
+          <label htmlFor="title" className="text-sm font-medium">
+            Service
+          </label>
+          <input
+            id="title"
+            name="title"
+            defaultValue={initial("title", service?.title ?? "")}
+            placeholder="Sunday Morning"
+            required
+            className={field}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="heldOn" className="text-sm font-medium">
+            Date
+          </label>
+          <input
+            id="heldOn"
+            name="heldOn"
+            type="date"
+            defaultValue={initial("heldOn", service?.heldOn ?? "")}
+            required
+            className={field}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="screenAspect" className="text-sm font-medium">
+            Screen shape
+          </label>
+          <select
+            id="screenAspect"
+            name="screenAspect"
+            defaultValue={initial("screenAspect", service?.screenAspect ?? "16:9")}
+            className={field}
+          >
+            <option value="16:9">16:9 — most projectors and TVs</option>
+            <option value="16:10">16:10 — some older projectors</option>
+            <option value="4:3">4:3 — square-ish, older screens</option>
+            <option value="21:9">21:9 — ultrawide</option>
+          </select>
+          <p className="text-xs text-stone-500">
+            What the previews in the running order are drawn at, so a line that
+            won&apos;t fit is obvious here rather than on Sunday.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="startsAt" className="text-sm font-medium">
+            Starts
+          </label>
+          <input
+            id="startsAt"
+            name="startsAt"
+            defaultValue={initial("startsAt", service?.startsAt ?? "10:00")}
+            placeholder="10:00"
+            className={field}
+          />
+          <p className="text-xs text-stone-500">24-hour, like 10:00 or 18:30.</p>
+        </div>
+      </div>
+
+      <MediaField
+        name="backgroundSrc"
+        label="Background on the projector"
+        tenant={tenant}
+        defaultValue={initial("backgroundSrc", service?.backgroundSrc ?? "")}
+        accept="image/*,video/*"
+        kinds={["image", "video"]}
+        colours
+        uploadsEnabled={uploadsEnabled}
+        hint="Sits behind the words for the whole service: a picture, a video that loops silently, or a colour. Anything busy or bright makes lyrics hard to read from the back — the screen darkens it, but a quiet background still wins. Leave it empty for black."
+      />
+
+      <div className="space-y-1.5">
+        <label htmlFor="notes" className="text-sm font-medium">
+          Notes <span className="font-normal text-stone-500">(optional)</span>
+        </label>
+        <textarea
+          id="notes"
+          name="notes"
+          rows={3}
+          defaultValue={initial("notes", service?.notes ?? "")}
+          className={field}
+        />
+      </div>
+
+      {state.error ? (
+        <p className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+          {state.error}
+        </p>
+      ) : null}
+
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-lg bg-amber-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-60"
+      >
+        {pending ? "Saving…" : service ? "Save service" : "Create the service"}
+      </button>
+    </form>
+  );
+}

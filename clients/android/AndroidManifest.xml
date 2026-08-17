@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The remote, for Android.
+
+  The same thing as the iPhone one and for the same reasons: the page does the
+  work, and the app supplies what a browser tab on a phone is bad at — buttons
+  that stay put while the list scrolls, a screen that doesn't sleep mid-song,
+  and a session that survives being put in a pocket.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.churchviewer.remote"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:label="ChurchViewer Remote"
+        android:icon="@mipmap/icon"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+        android:supportsRtl="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

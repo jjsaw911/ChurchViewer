@@ -1,0 +1,20 @@
+# /etc/systemd/system/churchviewer-backup.service
+#
+# Takes the database dump and puts it in the bucket. Started by the timer, and
+# safe to start by hand before anything that changes the schema.
+[Unit]
+Description=ChurchViewer database backup
+After=network-online.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+User=churchviewer
+Group=churchviewer
+WorkingDirectory=/srv/churchviewer
+
+ExecStart=/srv/churchviewer/deploy/backup.sh
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
