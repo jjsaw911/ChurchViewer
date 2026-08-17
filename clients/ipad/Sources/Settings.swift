@@ -24,7 +24,7 @@ final class Settings: ObservableObject {
      and the screen are driving two different plans — which looks, from either
      end, exactly like the app being broken.
      */
-    static let runPath = "/admin/services/2026-08-23"
+    static let runPath = "/present/today"
 
     /** The plans list, for the weeks with two services or a change of mind. */
     static let plansPath = "/admin/services"

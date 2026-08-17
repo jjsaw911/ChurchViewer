@@ -41,6 +41,7 @@ const RARELY: Item[] = [
   { href: "/admin/social", label: "Social", hint: "Post to Facebook and Instagram" },
   { href: "/admin/people", label: "People", hint: "Who can get in, and invitations" },
   { href: "/download", label: "Display app", hint: "For the projector computer" },
+  { href: "/help", label: "How to run a service", hint: "The walkthrough, with pictures" },
 ];
 
 /** Whether a link is the page you're on, or the section you're inside. */
