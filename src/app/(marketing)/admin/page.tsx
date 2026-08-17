@@ -10,7 +10,7 @@ import { env } from "@/lib/env";
 import { describeSecret, getSetting, OPENAI_API_KEY } from "@/lib/settings";
 import { META_APP_ID, META_APP_SECRET } from "@/lib/social/meta";
 import { TESTFLIGHT_URL } from "@/lib/settings";
-import { MAIL_API_KEY, MAIL_FROM } from "@/lib/mail/send";
+import { MAIL_API_KEY, MAIL_FROM, MAIL_REPLY_TO } from "@/lib/mail/send";
 import { rootUrl } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Platform admin" };
@@ -36,9 +36,10 @@ export default async function PlatformAdminPage() {
     getSetting(TESTFLIGHT_URL),
   ]);
 
-  const [mailFrom, mailKey] = await Promise.all([
+  const [mailFrom, mailKey, mailReplyTo] = await Promise.all([
     getSetting(MAIL_FROM),
     getSetting(MAIL_API_KEY),
+    getSetting(MAIL_REPLY_TO),
   ]);
 
   return (
@@ -48,7 +49,7 @@ export default async function PlatformAdminPage() {
         fromEnvironment={Boolean(process.env.OPENAI_API_KEY)}
       />
 
-      <MailForm from={mailFrom} hasKey={Boolean(mailKey)} />
+      <MailForm from={mailFrom} replyTo={mailReplyTo} hasKey={Boolean(mailKey)} />
 
       <TestFlightForm url={testFlight} />
 

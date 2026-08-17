@@ -14,6 +14,15 @@ import { getSetting } from "@/lib/settings";
 
 export const MAIL_API_KEY = "mail.apiKey";
 export const MAIL_FROM = "mail.from";
+/**
+ * Where a reply goes.
+ *
+ * Mail is sent from a sending domain that has no mailbox behind it, so a
+ * volunteer who answers a password-reset email — and some of them will, because
+ * that is what people do with email — would be writing into a void. This is the
+ * address that actually reaches somebody.
+ */
+export const MAIL_REPLY_TO = "mail.replyTo";
 
 export type Mail = {
   to: string;
@@ -42,7 +51,11 @@ export async function isMailConfigured(): Promise<boolean> {
  * afternoon must not take that down with it.
  */
 export async function sendMail(mail: Mail): Promise<Sent> {
-  const [key, from] = await Promise.all([getSetting(MAIL_API_KEY), getSetting(MAIL_FROM)]);
+  const [key, from, replyTo] = await Promise.all([
+    getSetting(MAIL_API_KEY),
+    getSetting(MAIL_FROM),
+    getSetting(MAIL_REPLY_TO),
+  ]);
   if (!key || !from) return { ok: false, error: "Mail isn't set up yet." };
 
   try {
@@ -57,6 +70,7 @@ export async function sendMail(mail: Mail): Promise<Sent> {
         to: [mail.to],
         subject: mail.subject,
         text: mail.text,
+        ...(replyTo ? { reply_to: [replyTo] } : {}),
       }),
       cache: "no-store",
     });

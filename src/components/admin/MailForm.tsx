@@ -18,7 +18,15 @@ const field =
  * through a forgotten password at eleven at night is finding it out the hard
  * way.
  */
-export default function MailForm({ from, hasKey }: { from: string | null; hasKey: boolean }) {
+export default function MailForm({
+  from,
+  replyTo,
+  hasKey,
+}: {
+  from: string | null;
+  replyTo: string | null;
+  hasKey: boolean;
+}) {
   const [saveState, save, saving] = useActionState<PlatformState, FormData>(saveMailAction, {});
   const [testState, test, testing] = useActionState<PlatformState, FormData>(
     sendTestMailAction,
@@ -47,6 +55,18 @@ export default function MailForm({ from, hasKey }: { from: string | null; hasKey
             className={field}
           />
         </label>
+        <label className="block space-y-1">
+          <span className="text-sm font-medium">
+            Replies go to <span className="font-normal text-stone-500">(optional)</span>
+          </span>
+          <input
+            name="replyTo"
+            defaultValue={replyTo ?? ""}
+            placeholder="you@yourchurch.org"
+            className={field}
+          />
+        </label>
+
         <label className="block space-y-1">
           <span className="text-sm font-medium">Relay API key</span>
           <input

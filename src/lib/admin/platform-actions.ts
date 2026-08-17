@@ -11,7 +11,7 @@ import { getAnyChurchBySlug } from "@/lib/churches";
 import { rootUrl } from "@/lib/env";
 import { clearSetting, OPENAI_API_KEY, setSetting, TESTFLIGHT_URL } from "@/lib/settings";
 import { META_APP_ID, META_APP_SECRET } from "@/lib/social/meta";
-import { MAIL_API_KEY, MAIL_FROM, sendMail } from "@/lib/mail/send";
+import { MAIL_API_KEY, MAIL_FROM, MAIL_REPLY_TO, sendMail } from "@/lib/mail/send";
 import { slugify, validateSlug } from "@/lib/tenant";
 
 /**
@@ -164,10 +164,12 @@ export async function saveMailAction(
 
   const apiKey = value(formData, "apiKey");
   const from = value(formData, "from");
+  const replyTo = value(formData, "replyTo");
 
   if (!apiKey && !from) {
     await clearSetting(MAIL_API_KEY);
     await clearSetting(MAIL_FROM);
+    await clearSetting(MAIL_REPLY_TO);
     revalidatePath("/admin");
     return { ok: "Removed. Nothing sends mail until it's set again.", scope: "mail" };
   }
@@ -179,6 +181,8 @@ export async function saveMailAction(
 
   await setSetting(MAIL_API_KEY, apiKey, admin.id);
   await setSetting(MAIL_FROM, from, admin.id);
+  if (replyTo) await setSetting(MAIL_REPLY_TO, replyTo, admin.id);
+  else await clearSetting(MAIL_REPLY_TO);
 
   revalidatePath("/admin");
   return { ok: "Saved. Try the test below before trusting it.", scope: "mail" };
