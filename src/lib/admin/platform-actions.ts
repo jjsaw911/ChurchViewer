@@ -11,6 +11,7 @@ import { getAnyChurchBySlug } from "@/lib/churches";
 import { rootUrl } from "@/lib/env";
 import { clearSetting, OPENAI_API_KEY, setSetting, TESTFLIGHT_URL } from "@/lib/settings";
 import { META_APP_ID, META_APP_SECRET } from "@/lib/social/meta";
+import { MAIL_API_KEY, MAIL_FROM, sendMail } from "@/lib/mail/send";
 import { slugify, validateSlug } from "@/lib/tenant";
 
 /**
@@ -146,6 +147,65 @@ export async function saveTestFlightAction(
   await setSetting(TESTFLIGHT_URL, url, admin.id);
   revalidatePath("/admin");
   return { ok: "Saved. Every church's download page offers it now.", scope: "testflight" };
+}
+
+/**
+ * The relay this site sends its mail through.
+ *
+ * Both halves at once, because one without the other sends nothing: the key,
+ * and the address it comes from — which has to be at a domain the relay has
+ * been shown you own, or every message is silently binned as a forgery.
+ */
+export async function saveMailAction(
+  _previous: PlatformState,
+  formData: FormData,
+): Promise<PlatformState> {
+  const admin = await requirePlatformAdmin();
+
+  const apiKey = value(formData, "apiKey");
+  const from = value(formData, "from");
+
+  if (!apiKey && !from) {
+    await clearSetting(MAIL_API_KEY);
+    await clearSetting(MAIL_FROM);
+    revalidatePath("/admin");
+    return { ok: "Removed. Nothing sends mail until it's set again.", scope: "mail" };
+  }
+
+  if (!from || !/^[^@<>\s]+@[^@<>\s.]+\.[^@<>\s]+$/.test(from.replace(/^.*</, "").replace(/>$/, ""))) {
+    return fail("Give the address it comes from, like ChurchViewer <hello@churchviewer.com>.", "mail");
+  }
+  if (!apiKey) return fail("Paste the key from the mail relay.", "mail");
+
+  await setSetting(MAIL_API_KEY, apiKey, admin.id);
+  await setSetting(MAIL_FROM, from, admin.id);
+
+  revalidatePath("/admin");
+  return { ok: "Saved. Try the test below before trusting it.", scope: "mail" };
+}
+
+/** Prove it works, to an address the person setting it up can open. */
+export async function sendTestMailAction(
+  _previous: PlatformState,
+  formData: FormData,
+): Promise<PlatformState> {
+  const admin = await requirePlatformAdmin();
+  const to = value(formData, "to") || admin.email;
+
+  const sent = await sendMail({
+    to,
+    subject: "ChurchViewer test",
+    text: [
+      "This is the test from the platform console.",
+      "",
+      "If it arrived, password resets and invitations will too. If it landed in spam,",
+      "the domain's SPF and DKIM records are the thing to look at.",
+    ].join("\n"),
+  });
+
+  return sent.ok
+    ? { ok: `Sent to ${to}. Check it arrived, and check the spam folder if it didn't.`, scope: "mail" }
+    : fail(sent.error, "mail");
 }
 
 export async function clearOpenAiKeyAction(): Promise<PlatformState> {

@@ -42,6 +42,15 @@ export default function LoginForm({ next }: { next?: string }) {
         <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
       ) : null}
 
+      <p className="text-sm">
+        <a
+          href="/forgot"
+          className="text-stone-500 underline underline-offset-2 hover:text-amber-700"
+        >
+          Forgotten your password?
+        </a>
+      </p>
+
       <button
         type="submit"
         disabled={pending}

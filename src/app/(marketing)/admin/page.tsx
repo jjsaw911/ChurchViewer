@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import MailForm from "@/components/admin/MailForm";
 import MetaAppForm from "@/components/admin/MetaAppForm";
 import TestFlightForm from "@/components/admin/TestFlightForm";
 import OpenAiKeyForm from "@/components/admin/OpenAiKeyForm";
@@ -9,6 +10,7 @@ import { env } from "@/lib/env";
 import { describeSecret, getSetting, OPENAI_API_KEY } from "@/lib/settings";
 import { META_APP_ID, META_APP_SECRET } from "@/lib/social/meta";
 import { TESTFLIGHT_URL } from "@/lib/settings";
+import { MAIL_API_KEY, MAIL_FROM } from "@/lib/mail/send";
 import { rootUrl } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Platform admin" };
@@ -34,12 +36,19 @@ export default async function PlatformAdminPage() {
     getSetting(TESTFLIGHT_URL),
   ]);
 
+  const [mailFrom, mailKey] = await Promise.all([
+    getSetting(MAIL_FROM),
+    getSetting(MAIL_API_KEY),
+  ]);
+
   return (
     <div className="space-y-10">
       <OpenAiKeyForm
         hint={describeSecret(storedKey)}
         fromEnvironment={Boolean(process.env.OPENAI_API_KEY)}
       />
+
+      <MailForm from={mailFrom} hasKey={Boolean(mailKey)} />
 
       <TestFlightForm url={testFlight} />
 

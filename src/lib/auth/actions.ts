@@ -12,7 +12,8 @@ import {
   normalizeEmail,
 } from "@/lib/auth/accounts";
 import { checkPasswordStrength, hashPassword, verifyPassword } from "@/lib/auth/password";
-import { completeReset, resolveResetToken } from "@/lib/auth/reset";
+import { completeReset, createResetToken, resolveResetToken } from "@/lib/auth/reset";
+import { sendMail } from "@/lib/mail/send";
 import { acceptInvite, resolveInvite } from "@/lib/auth/invites";
 import { createSession, destroySession, getSessionUser } from "@/lib/auth/session";
 import { env, rootUrl, tenantUrl } from "@/lib/env";
@@ -197,6 +198,56 @@ export async function loginAction(_previous: FormState, formData: FormData): Pro
 
   await createSession(user.id);
   redirect(safeNext(next, "/register"));
+}
+
+/**
+ * Ask for a way back in.
+ *
+ * The answer is the same whether or not that address has an account. Telling
+ * somebody "no account with that email" is telling anybody who asks which of a
+ * church's addresses are real, and the person who genuinely mistyped their own
+ * address is helped just as well by being told to check their inbox and try
+ * again.
+ *
+ * The token is short-lived and single use; that part already existed, because
+ * administrators have been making these links by hand.
+ */
+export async function requestPasswordResetAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const email = normalizeEmail(value(formData, "email"));
+  const said = {
+    values: {
+      sent: "If that address has an account, a link is on its way. It lasts an hour.",
+    },
+  };
+
+  if (!isPlausibleEmail(email)) return { error: "Check that email address.", field: "email" };
+
+  const user = await findUserByEmail(email);
+  if (!user) return said;
+
+  const token = await createResetToken(user.id, user.id);
+  const sent = await sendMail({
+    to: email,
+    subject: "Choosing a new ChurchViewer password",
+    text: [
+      "Somebody asked for a new password for this address.",
+      "",
+      "Open this to choose one:",
+      rootUrl(`/reset/${token}`),
+      "",
+      "The link works once and stops working after an hour.",
+      "If this wasn't you, nothing has changed — ignore this and your password stays as it is.",
+    ].join("\n"),
+  });
+
+  // Not said out loud either way: whether the mail left is not the asker's
+  // business, and the failure is ours to find in the log.
+  if (!sent.ok) console.error(`[mail] reset for ${email}: ${sent.error}`);
+
+  return said;
 }
 
 /**
