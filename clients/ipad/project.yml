@@ -19,6 +19,12 @@ targets:
       properties:
         CFBundleDisplayName: ChurchViewer
         UILaunchScreen: {}
+        # iPhone: no upside-down. A phone handed over mid-service should never
+        # be the thing that's the wrong way up.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -32,5 +38,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.churchviewer.remote
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: "1"
-        # Nothing is signed for the simulator; a real iPad needs a team here.
+        # 1,2 = iPhone and iPad. The person running the service has a phone on
+        # them every week and an iPad only sometimes.
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # Nothing is signed for the simulator; a real device needs a team here.
         CODE_SIGNING_ALLOWED: NO

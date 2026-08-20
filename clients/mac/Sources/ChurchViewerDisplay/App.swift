@@ -3,12 +3,18 @@ import AppKit
 
 /// ChurchViewer Display — the Mac at the church.
 ///
-/// Two windows, because a church Mac drives two things: the projector the room
-/// watches, and the monitor facing the platform. They show different pages and
-/// belong on different screens, so they're separate windows with separate
-/// settings rather than one window somebody keeps dragging about.
+/// Four windows, because a church Mac drives more than one thing at once.
+/// **A** is the monitor facing the platform and **B** is the projector the room
+/// watches; **C** and **D** are spare, for an overflow screen or a foyer
+/// television. They show different pages and belong on different screens, so
+/// they're separate windows with separate settings rather than one window
+/// somebody keeps dragging about.
 ///
-/// Everything you can change is reachable from the menu bar icon, because both
+/// A window per output rather than a list of them, because macOS wants its
+/// windows declared when the app is built. Unused ones cost nothing: nothing
+/// opens them until they've been given an address.
+///
+/// Everything you can change is reachable from the menu bar icon, because those
 /// windows spend the service full screen with nothing on them but their job.
 @main
 struct ChurchViewerDisplayApp: App {
@@ -16,9 +22,9 @@ struct ChurchViewerDisplayApp: App {
     @State private var reloadToken = 0
 
     var body: some Scene {
-        Window("Projector", id: "projector") {
-            OutputScene(output: settings.projector, reloadToken: reloadToken)
-                .onAppear { fillIfAsked(settings.projector, window: "Projector") }
+        Window("Stage", id: "stage") {
+            OutputScene(output: settings.stage, reloadToken: reloadToken)
+                .onAppear { fillIfAsked(settings.stage) }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
@@ -28,9 +34,21 @@ struct ChurchViewerDisplayApp: App {
             }
         }
 
-        Window("Stage", id: "stage") {
-            OutputScene(output: settings.stage, reloadToken: reloadToken)
-                .onAppear { fillIfAsked(settings.stage, window: "Stage") }
+        Window("Projector", id: "projector") {
+            OutputScene(output: settings.audience, reloadToken: reloadToken)
+                .onAppear { fillIfAsked(settings.audience) }
+        }
+        .windowStyle(.hiddenTitleBar)
+
+        Window("Screen C", id: "screenC") {
+            OutputScene(output: settings.spareC, reloadToken: reloadToken)
+                .onAppear { fillIfAsked(settings.spareC) }
+        }
+        .windowStyle(.hiddenTitleBar)
+
+        Window("Screen D", id: "screenD") {
+            OutputScene(output: settings.spareD, reloadToken: reloadToken)
+                .onAppear { fillIfAsked(settings.spareD) }
         }
         .windowStyle(.hiddenTitleBar)
 
@@ -39,8 +57,8 @@ struct ChurchViewerDisplayApp: App {
         }
         .windowResizability(.contentSize)
 
-        /// Always there, whatever the windows are doing — including filling two
-        /// screens with the menu bar hidden behind them.
+        /// Always there, whatever the windows are doing — including filling
+        /// every screen with the menu bar hidden behind them.
         MenuBarExtra("ChurchViewer Display", systemImage: "sparkles.tv") {
             DisplayCommands(settings: settings, reload: { reloadToken += 1 })
             Divider()
@@ -48,11 +66,15 @@ struct ChurchViewerDisplayApp: App {
         }
     }
 
-    private func fillIfAsked(_ output: OutputSettings, window: String) {
+    private func fillIfAsked(_ output: OutputSettings) {
         guard output.isConfigured, output.fillOnLaunch else { return }
         // Once the window exists and has been placed on a screen.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            WindowPlacement.move(window: window, to: output.targetScreen(), fullScreen: true)
+            WindowPlacement.move(
+                window: output.windowTitle,
+                to: output.targetScreen(),
+                fullScreen: true
+            )
         }
     }
 }
@@ -73,36 +95,49 @@ private struct DisplayCommands: View {
 
         Divider()
 
-        Button("Fill the projector") {
-            openWindow(id: "projector")
-            WindowPlacement.move(
-                window: "Projector",
-                to: settings.projector.targetScreen(),
-                fullScreen: true
-            )
+        // Cmd-Shift and the output's own letter: A fills the stage monitor, B
+        // the projector, and so on. One rule to remember rather than four.
+        ForEach(settings.all) { output in
+            FillButton(output: output)
         }
-        .keyboardShortcut("f", modifiers: [.command, .shift])
-        .disabled(!settings.projector.isConfigured)
 
-        Button("Fill the stage monitor") {
-            openWindow(id: "stage")
-            WindowPlacement.move(
-                window: "Stage",
-                to: settings.stage.targetScreen(),
-                fullScreen: true
-            )
-        }
-        .keyboardShortcut("s", modifiers: [.command, .shift])
-        .disabled(!settings.stage.isConfigured)
-
-        Button("Leave full screen (both)") {
-            WindowPlacement.leaveFullScreen(window: "Projector")
-            WindowPlacement.leaveFullScreen(window: "Stage")
+        Button("Leave full screen (all)") {
+            for output in settings.all {
+                WindowPlacement.leaveFullScreen(window: output.windowTitle)
+            }
         }
         .keyboardShortcut(.escape, modifiers: .command)
 
-        Button("Reload both", action: reload)
+        Button("Reload all", action: reload)
             .keyboardShortcut("r", modifiers: .command)
+    }
+}
+
+/// Put one output on its screen and fill it.
+///
+/// Its own view because it observes its own output: the menu item has to grey
+/// itself out the moment an address is cleared, and watching `Settings` doesn't
+/// see that — each output is a separate source of changes.
+private struct FillButton: View {
+    @ObservedObject var output: OutputSettings
+
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Fill \(output.label)") {
+            openWindow(id: output.id)
+            WindowPlacement.move(
+                window: output.windowTitle,
+                to: output.targetScreen(),
+                fullScreen: true
+            )
+        }
+        .keyboardShortcut(shortcut, modifiers: [.command, .shift])
+        .disabled(!output.isConfigured)
+    }
+
+    private var shortcut: KeyEquivalent {
+        KeyEquivalent(Character(output.letter.lowercased()))
     }
 }
 
@@ -130,7 +165,7 @@ private struct OutputScene: View {
                 Button {
                     openSettings()
                 } label: {
-                    Label(output.name, systemImage: "gearshape.fill")
+                    Label(output.label, systemImage: "gearshape.fill")
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(.black.opacity(0.65), in: Capsule())
@@ -166,25 +201,19 @@ private struct SetupPrompt: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: output.name == "Stage" ? "music.mic" : "sparkles.tv")
+            Image(systemName: output.symbol)
                 .font(.system(size: 44))
                 .foregroundStyle(.white.opacity(0.5))
 
-            Text(output.name)
+            Text(output.label)
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(.white)
 
-            Text(
-                output.name == "Stage"
-                    ? "For a monitor facing the platform. In a browser: open the plan, press "
-                        + "Run it, then Open the stage display — and paste that window's address."
-                    : "For the projector. In a browser: open the plan, press Run it, then "
-                        + "Open the output screen — and paste that window's address."
-            )
-            .font(.callout)
-            .foregroundStyle(.white.opacity(0.6))
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: 440)
+            Text(output.purpose)
+                .font(.callout)
+                .foregroundStyle(.white.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 440)
 
             Button("Open Settings", action: onOpenSettings)
                 .controlSize(.large)

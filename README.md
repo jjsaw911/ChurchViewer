@@ -131,9 +131,14 @@ Every `/admin` page and every write action calls `requireChurchAccess()`. Server
 actions are public endpoints — the form that rendered them proves nothing about
 who is posting.
 
-**Not built yet:** email verification for password signups (no mail provider is
-wired up), password reset, and inviting extra admins to a church. The schema has
-`email_verified_at` and a `memberships.role` of `owner`/`editor` ready for them.
+Adding people to a church and resetting their passwords both work from
+`/admin/people`. Because no mail provider is wired up, neither is sent by email:
+the admin gets a one-time link to read out or hand over. Completing a reset
+revokes every existing session for that account.
+
+**Not built yet:** email verification for password signups, and self-service
+"forgot my password" — both wait on a mail provider. The schema has
+`email_verified_at` ready for the first.
 
 ## Media
 

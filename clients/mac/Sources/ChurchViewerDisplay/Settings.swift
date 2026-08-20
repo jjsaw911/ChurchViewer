@@ -4,14 +4,43 @@ import AppKit
 /// One output: an address, a screen to put it on, and whether to fill that
 /// screen the moment the app opens.
 ///
-/// There are two of these — the projector and the stage monitor — because a
-/// church Mac usually has both hanging off it, showing different things to
-/// different people. The stage one is optional; plenty of rooms have no monitor
-/// facing the platform.
+/// Four of these exist. **A** faces the platform and **B** faces the room —
+/// those are the two every church uses. **C** and **D** are spare, for an
+/// overflow screen, a lobby television, or a feed going to a stream, and they
+/// stay out of the way until somebody gives one an address.
+///
+/// Four rather than an open-ended list because each output is a real macOS
+/// window, and windows have to be declared when the app is built rather than
+/// conjured while it runs. Four is more than any room here needs.
 @MainActor
-final class OutputSettings: ObservableObject {
+final class OutputSettings: ObservableObject, Identifiable {
+    /// The window this output owns. Also its `Identifiable` id.
+    ///
+    /// `nonisolated` because `Identifiable` doesn't promise the main actor, and
+    /// this class does. It's a constant `String`, so there's nothing to race.
+    nonisolated let id: String
+
+    /// A, B, C or D — the shorthand used when setting the room up.
+    let letter: String
+
+    /// What it's for, in one word: Stage, Audience, Screen C…
     let name: String
+
+    /// The window's title. `WindowPlacement` finds windows by this, so no two
+    /// outputs may share one.
+    let windowTitle: String
+
+    /// Shown in the settings window and on the window before it's set up.
+    let purpose: String
+
+    let symbol: String
+
+    /// C and D, which are hidden behind a disclosure until wanted.
+    let isSpare: Bool
+
     private let prefix: String
+
+    var label: String { "\(letter) — \(name)" }
 
     @Published var address: String {
         didSet { UserDefaults.standard.set(address, forKey: "\(prefix)URL") }
@@ -27,8 +56,24 @@ final class OutputSettings: ObservableObject {
         didSet { UserDefaults.standard.set(fillOnLaunch, forKey: "\(prefix)FullScreen") }
     }
 
-    init(name: String, prefix: String, legacyURLKey: String? = nil) {
+    init(
+        id: String,
+        letter: String,
+        name: String,
+        windowTitle: String,
+        purpose: String,
+        symbol: String,
+        prefix: String,
+        isSpare: Bool = false,
+        legacyURLKey: String? = nil
+    ) {
+        self.id = id
+        self.letter = letter
         self.name = name
+        self.windowTitle = windowTitle
+        self.purpose = purpose
+        self.symbol = symbol
+        self.isSpare = isSpare
         self.prefix = prefix
 
         let defaults = UserDefaults.standard
@@ -37,11 +82,16 @@ final class OutputSettings: ObservableObject {
         address = defaults.string(forKey: "\(prefix)URL")
             ?? legacyURLKey.flatMap { defaults.string(forKey: $0) }
             ?? ""
-        screenName = defaults.string(forKey: "\(prefix)Screen")
-            ?? defaults.string(forKey: "screenName")
-            ?? ""
-        fillOnLaunch = defaults.object(forKey: "\(prefix)FullScreen") as? Bool
-            ?? defaults.bool(forKey: "fullScreenOnLaunch")
+
+        // The pre-A/B settings had one screen and one fill flag for the whole
+        // app. A and B inherit them so a Mac already set up stays set up; the
+        // spares must not, or C and D would silently arrive pointed at the
+        // projector.
+        let legacyScreen: String? = isSpare ? nil : defaults.string(forKey: "screenName")
+        let legacyFill: Bool = isSpare ? false : defaults.bool(forKey: "fullScreenOnLaunch")
+
+        screenName = defaults.string(forKey: "\(prefix)Screen") ?? legacyScreen ?? ""
+        fillOnLaunch = defaults.object(forKey: "\(prefix)FullScreen") as? Bool ?? legacyFill
     }
 
     var url: URL? {
@@ -62,11 +112,64 @@ final class OutputSettings: ObservableObject {
 /// Everything the church sets once and never thinks about again.
 @MainActor
 final class Settings: ObservableObject {
-    /// What the room sees: words, over whatever background the plan carries.
-    let projector = OutputSettings(name: "Projector", prefix: "projector", legacyURLKey: "displayURL")
+    /// **A** — what the platform sees, looking back down the room: this slide,
+    /// the next one, the notes, the clock. No background behind any of it; the
+    /// people reading it are the ones who need the words, not the atmosphere.
+    let stage = OutputSettings(
+        id: "stage",
+        letter: "A",
+        name: "Stage",
+        windowTitle: "Stage",
+        purpose: "For the monitor facing the platform. Notes, what's next and the "
+            + "clock, with no background. From a plan: Run it, then Open the stage display.",
+        symbol: "music.mic",
+        prefix: "stage"
+    )
 
-    /// What the platform sees: this slide, the next one, the notes, the clock.
-    let stage = OutputSettings(name: "Stage", prefix: "stage")
+    /// **B** — what the room sees: the words, over whatever background the plan
+    /// carries. The one the congregation is actually looking at.
+    let audience = OutputSettings(
+        id: "projector",
+        letter: "B",
+        name: "Audience",
+        windowTitle: "Projector",
+        purpose: "For the projector the congregation watches. Slides and lyrics over "
+            + "the plan's background. From a plan: Run it, then Open the output screen.",
+        symbol: "sparkles.tv",
+        prefix: "projector",
+        legacyURLKey: "displayURL"
+    )
+
+    /// **C** and **D** — spare. An overflow room, a screen in the foyer, a
+    /// second projector showing something other than B. Empty until needed.
+    let spareC = OutputSettings(
+        id: "screenC",
+        letter: "C",
+        name: "Screen C",
+        windowTitle: "Screen C",
+        purpose: "Spare. An overflow room, a foyer screen, or a second projector "
+            + "showing something other than B. Leave empty if unused.",
+        symbol: "display",
+        prefix: "screenC",
+        isSpare: true
+    )
+
+    let spareD = OutputSettings(
+        id: "screenD",
+        letter: "D",
+        name: "Screen D",
+        windowTitle: "Screen D",
+        purpose: "Spare. Leave empty if unused.",
+        symbol: "display",
+        prefix: "screenD",
+        isSpare: true
+    )
+
+    /// In the order they're offered, which is the order a room gets set up in.
+    var all: [OutputSettings] { [stage, audience, spareC, spareD] }
+
+    /// The ones with an address — everything the app should actually open.
+    var configured: [OutputSettings] { all.filter(\.isConfigured) }
 
     @Published var openAtLogin: Bool {
         didSet { LoginItem.set(enabled: openAtLogin) }
@@ -76,7 +179,7 @@ final class Settings: ObservableObject {
         openAtLogin = LoginItem.isEnabled
     }
 
-    var isConfigured: Bool { projector.isConfigured || stage.isConfigured }
+    var isConfigured: Bool { !configured.isEmpty }
 }
 
 /// Opening at login, as a launch agent.

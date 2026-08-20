@@ -12,48 +12,60 @@ struct SettingsView: View {
 
     @State private var screens: [String] = NSScreen.screens.map(\.localizedName)
 
+    /// Spares stay folded away. A room with two screens shouldn't have to read
+    /// past two it hasn't got.
+    @State private var showingSpares = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("ChurchViewer Display").font(.title3.weight(.semibold))
-                Text("Two outputs: what the room sees, and what the platform sees.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("ChurchViewer Display").font(.title3.weight(.semibold))
+                    Text("A faces the platform. B faces the room. C and D are spare.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                OutputSection(output: settings.stage, screens: $screens, onRescan: rescan)
+
+                Divider()
+
+                OutputSection(output: settings.audience, screens: $screens, onRescan: rescan)
+
+                Divider()
+
+                DisclosureGroup(isExpanded: $showingSpares) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        OutputSection(output: settings.spareC, screens: $screens, onRescan: rescan)
+                        Divider()
+                        OutputSection(output: settings.spareD, screens: $screens, onRescan: rescan)
+                    }
+                    .padding(.top, 12)
+                } label: {
+                    Text("More screens (C and D)").font(.headline)
+                }
+
+                Divider()
+
+                Toggle("Open automatically when this Mac starts up", isOn: $settings.openAtLogin)
+
+                HStack {
+                    Button("Reload all", action: onReload)
+                    Spacer()
+                    Button("Close") { NSApp.keyWindow?.close() }
+                        .keyboardShortcut(.defaultAction)
+                }
             }
-
-            OutputSection(
-                output: settings.projector,
-                screens: $screens,
-                windowTitle: "Projector",
-                explanation: "From a plan: Run it, then Open the output screen.",
-                onRescan: rescan
-            )
-
-            Divider()
-
-            OutputSection(
-                output: settings.stage,
-                screens: $screens,
-                windowTitle: "Stage",
-                explanation: "From a plan: Run it, then Open the stage display. Leave empty if there's no monitor facing the platform.",
-                onRescan: rescan
-            )
-
-            Divider()
-
-            Toggle("Open automatically when this Mac starts up", isOn: $settings.openAtLogin)
-
-            HStack {
-                Button("Reload both", action: onReload)
-                Spacer()
-                Button("Close") { NSApp.keyWindow?.close() }
-                    .keyboardShortcut(.defaultAction)
-            }
+            .padding(24)
         }
-        .padding(24)
-        .frame(width: 580)
+        // A definite size, not a natural one: the window is `.contentSize`, and
+        // a ScrollView has no height of its own to offer it. 620 shows A and B
+        // without scrolling and keeps the window on a laptop screen when all
+        // four are open.
+        .frame(width: 580, height: 620)
         .onAppear {
             rescan()
+            showingSpares = settings.spareC.isConfigured || settings.spareD.isConfigured
             WindowPlacement.bringSettingsToOperator()
         }
     }
@@ -65,8 +77,6 @@ struct SettingsView: View {
 private struct OutputSection: View {
     @ObservedObject var output: OutputSettings
     @Binding var screens: [String]
-    let windowTitle: String
-    let explanation: String
     let onRescan: () -> Void
 
     @Environment(\.openWindow) private var openWindow
@@ -74,11 +84,13 @@ private struct OutputSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(output.name).font(.headline)
+                Label(output.label, systemImage: output.symbol).font(.headline)
                 Spacer()
-                Text(output.isConfigured ? (output.url?.host ?? "") : "not set")
+                // A spare with no address is doing what it's meant to, so it
+                // doesn't get the red "not set" that A and B would earn.
+                Text(output.isConfigured ? (output.url?.host ?? "") : (output.isSpare ? "unused" : "not set"))
                     .font(.caption)
-                    .foregroundStyle(output.isConfigured ? Color.secondary : Color.red)
+                    .foregroundStyle(status)
             }
 
             HStack {
@@ -92,7 +104,7 @@ private struct OutputSection: View {
                 }
             }
 
-            Text(explanation).font(.caption).foregroundStyle(.secondary)
+            Text(output.purpose).font(.caption).foregroundStyle(.secondary)
 
             HStack {
                 Picker("Screen", selection: $output.screenName) {
@@ -110,9 +122,9 @@ private struct OutputSection: View {
 
             HStack {
                 Button("Show it now") {
-                    openWindow(id: windowTitle.lowercased())
+                    openWindow(id: output.id)
                     WindowPlacement.move(
-                        window: windowTitle,
+                        window: output.windowTitle,
                         to: output.targetScreen(),
                         fullScreen: true
                     )
@@ -120,9 +132,14 @@ private struct OutputSection: View {
                 .disabled(!output.isConfigured)
 
                 Button("Leave full screen") {
-                    WindowPlacement.leaveFullScreen(window: windowTitle)
+                    WindowPlacement.leaveFullScreen(window: output.windowTitle)
                 }
             }
         }
+    }
+
+    private var status: Color {
+        if output.isConfigured { return .secondary }
+        return output.isSpare ? .secondary : .red
     }
 }

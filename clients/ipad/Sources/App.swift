@@ -57,51 +57,81 @@ private struct RemoteView: View {
 /// above is being scrolled, they must not move when it does, and they have to
 /// be hittable without looking — this gets used one-handed, in a dark room, by
 /// somebody also watching a band.
+///
+/// The same bar serves an iPad on a stand and a phone held one-handed. On a
+/// phone there isn't room for four labelled buttons, so the three secondary
+/// ones drop to icons and Next keeps its word — it's the one pressed ten times
+/// as often, and it stays the biggest target on either device.
 private struct ControlBar: View {
     let onBack: () -> Void
     let onNext: () -> Void
     let onBlank: () -> Void
     let onSettings: () -> Void
 
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    private var compact: Bool { sizeClass == .compact }
+
+    /// Apple's minimum touch target is 44pt. A dark room and a moving band
+    /// argue for more, so even the tightest phone layout keeps well above it.
+    private var height: CGFloat { compact ? 62 : 72 }
+    private var iconWidth: CGFloat { compact ? 52 : 60 }
+    private var backWidth: CGFloat { compact ? 68 : 150 }
+    private var blankWidth: CGFloat { compact ? 68 : 140 }
+
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: compact ? 8 : 12) {
             Button(action: onSettings) {
                 Image(systemName: "gearshape.fill")
                     .font(.title2)
-                    .frame(width: 60, height: 72)
+                    .frame(width: iconWidth, height: height)
             }
             .buttonStyle(.bordered)
+            .accessibilityLabel("Settings")
 
             // Back is deliberately the smaller of the two. Next is pressed ten
             // times as often, and hitting the wrong one mid-verse is the
             // mistake worth designing against — so Next gets whatever room is
             // left, and it's always the bigger target.
             Button(action: onBack) {
-                Label("Back", systemImage: "chevron.left")
-                    .font(.title3.weight(.semibold))
-                    .frame(width: 150, height: 72)
+                secondaryLabel("Back", systemImage: "chevron.left")
+                    .frame(width: backWidth, height: height)
             }
             .buttonStyle(.borderedProminent)
             .tint(.gray)
+            .accessibilityLabel("Back")
 
             Button(action: onNext) {
                 Label("Next", systemImage: "chevron.right")
-                    .font(.title.weight(.bold))
-                    .frame(maxWidth: .infinity, minHeight: 72)
+                    .font(compact ? .title3.weight(.bold) : .title.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity, minHeight: height)
             }
             .buttonStyle(.borderedProminent)
+            .accessibilityLabel("Next")
 
             Button(action: onBlank) {
-                Label("Blank", systemImage: "rectangle.slash")
-                    .font(.title3.weight(.semibold))
-                    .frame(width: 140, height: 72)
+                secondaryLabel("Blank", systemImage: "rectangle.slash")
+                    .frame(width: blankWidth, height: height)
             }
             .buttonStyle(.bordered)
             .tint(.red)
+            .accessibilityLabel("Blank")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, compact ? 10 : 16)
+        .padding(.vertical, compact ? 8 : 12)
         .background(.bar)
+    }
+
+    /// Icon alone on a phone, icon and word on an iPad.
+    @ViewBuilder
+    private func secondaryLabel(_ title: String, systemImage: String) -> some View {
+        if compact {
+            Image(systemName: systemImage).font(.title2.weight(.semibold))
+        } else {
+            Label(title, systemImage: systemImage).font(.title3.weight(.semibold))
+        }
     }
 }
 

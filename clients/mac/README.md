@@ -3,7 +3,24 @@
 Wired to the projector. Its one job is to put the right words on the screen and
 to keep doing that when nothing else works.
 
-**A first version exists.** SwiftUI, one window, no Xcode project.
+**A first version exists.** SwiftUI, no Xcode project.
+
+## The screens, and what each is for
+
+Four outputs, each its own window on its own monitor:
+
+| | What it's for |
+| --- | --- |
+| **A — Stage** | The monitor facing the platform. What's up, what's next, the notes, the clock. **No background** — the people reading it need the words, not the atmosphere. |
+| **B — Audience** | The projector the congregation watches. Slides and lyrics over the plan's background. |
+| **C, D** | Spare. An overflow room, a foyer screen, a feed for a stream. Empty until wanted, and folded away in Settings until then. |
+
+Only A and B are needed. C and D exist so a room that grows doesn't need a new
+version of the app.
+
+Two projectors showing the **same** picture don't need two outputs — mirror them
+in macOS display settings and let B drive both. Use C when the second screen
+shows something different.
 
 ## Installing it
 
@@ -36,13 +53,14 @@ Scripted, for anyone who prefers it:
 ## Using it
 
 Everything is in the menu bar icon (the little TV, top right of your Mac) — it
-stays reachable even when the window is filling a projector. Settings opens as
-its own window on your screen, never on the projector, and holds the address,
-the screen picker, "fill at launch", "open at startup", and buttons to fill the
-projector or reload. Moving the mouse over the display window also shows a
-Settings button; it fades when you stop.
+stays reachable even when a window is filling a projector. Settings opens as
+its own window on your screen, never on the projector, and holds each output's
+address, its screen picker, "fill at launch", and "open at startup". Moving the
+mouse over a display window also shows a Settings button; it fades when you stop.
 
-⌘⇧F fills the chosen screen, ⌘⎋ leaves full screen, ⌘R reloads.
+**⌘⇧ and the output's letter** fills that screen — ⌘⇧A the stage monitor, ⌘⇧B
+the projector, ⌘⇧C and ⌘⇧D the spares. ⌘⎋ takes them all out of full screen and
+⌘R reloads them all.
 
 ## How it follows the operator
 
@@ -58,8 +76,9 @@ screen doesn't.
 
 ## What it does today
 
-- Fills a **chosen** screen, not whichever one the window landed on — the church
-  Mac has two and the projector isn't the one with the menu bar.
+- Drives up to **four** outputs, each pinned to a **chosen** screen rather than
+  whichever one its window landed on — the projector is never the screen with
+  the menu bar on it.
 - Signs in once and stays signed in.
 - Retries a failed load on its own, backing off to every 30 seconds, so a
   dropped wifi comes back without anybody walking to the Mac.
@@ -78,9 +97,10 @@ screen doesn't.
 
 ## What it has to do
 
-- **Fill a chosen display.** The church's Mac has two screens and the projector
-  is not the one with the menu bar on it. Which screen is a setting, remembered,
-  and re-applied when a projector is unplugged and plugged back in.
+- **Fill a chosen display.** The church's Mac has several screens and the
+  projector is not the one with the menu bar on it. Which screen is a setting,
+  remembered per output, and re-applied when a projector is unplugged and
+  plugged back in.
 - **Hold the service locally.** Slides, images and audio for the plan are
   downloaded before the service starts. Once downloaded, the network is optional.
 - **Be the authority while a service runs.** It knows what's on screen. Others

@@ -1,17 +1,29 @@
-# The remote — the iPad
+# The remote — iPhone and iPad
 
 Held by whoever is running the service. It drives the display; it never puts
 anything on the projector itself.
 
 **A first version exists.** SwiftUI, one screen, no committed Xcode project.
 
+Universal: the same app runs on an iPhone and an iPad. The phone is the one
+that matters most, because it's the device the operator has on them every week.
+On a phone the control bar drops Back, Blank and Settings to icons so **Next**
+keeps the room it needs; on an iPad all four keep their words.
+
 ## Building it
 
 ```sh
 brew install xcodegen   # once
-./build.sh              # builds, installs on an iPad simulator, launches it
-./build.sh --device     # generates the project and opens it for a real iPad
+./build.sh              # builds and launches on a booted simulator
+./build.sh --iphone     # force an iPhone simulator
+./build.sh --ipad       # force an iPad simulator
+./build.sh --device     # opens the project for a real iPhone or iPad
 ```
+
+With nothing booted, `./build.sh` picks an iPhone.
+
+Full **Xcode** is required — the Command Line Tools alone have no iOS SDK and
+no simulators.
 
 The project is generated from `project.yml` rather than committed: an
 `.xcodeproj` is a large plist only one person can merge, and this way the whole
